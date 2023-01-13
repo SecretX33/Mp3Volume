@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch4jConfig>
+  <dontWrapJar>false</dontWrapJar>
+  <headerType>gui</headerType>
+  <jar>C:\Users\User\Documents\TrashProjects\KotlinPlayground\build\libs\KotlinPlayground.jar</jar>
+  <outfile>C:\Users\User\Documents\TrashProjects\KotlinPlayground\output\executable.exe</outfile>
+  <errTitle>Please download java man, it&apos;s not that hard</errTitle>
+  <cmdLine></cmdLine>
+  <chdir>.</chdir>
+  <priority>normal</priority>
+  <downloadUrl>http://java.com/download</downloadUrl>
+  <supportUrl></supportUrl>
+  <stayAlive>false</stayAlive>
+  <restartOnCrash>false</restartOnCrash>
+  <manifest></manifest>
+  <icon>C:\Program Files (x86)\RivaTuner Statistics Server\Localization\PTBR\BRA.ico</icon>
+  <classPath>
+    <mainClass>com.github.secretx33.kotlinplayground.MainKt</mainClass>
+    <cp>com.github.secretx33.kotlinplayground.MainKt</cp>
+  </classPath>
+  <jre>
+    <path>C:\Program Files\Eclipse Adoptium\jdk-17.0.1.12-hotspot</path>
+    <bundledJre64Bit>true</bundledJre64Bit>
+    <bundledJreAsFallback>true</bundledJreAsFallback>
+    <minVersion>17.0</minVersion>
+    <maxVersion></maxVersion>
+    <jdkPreference>preferJre</jdkPreference>
+    <runtimeBits>64/32</runtimeBits>
+    <initialHeapSize>128</initialHeapSize>
+    <maxHeapSize>2048</maxHeapSize>
+  </jre>
+</launch4jConfig>
