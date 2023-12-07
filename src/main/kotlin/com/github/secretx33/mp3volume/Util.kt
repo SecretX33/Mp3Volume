@@ -1,10 +1,6 @@
 package com.github.secretx33.mp3volume
 
-import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.ObjectWriter
-import com.fasterxml.jackson.databind.module.SimpleModule
+import ch.qos.logback.core.net.ObjectWriter
 import io.github.secretx33.resourceresolver.PathMatchingResourcePatternResolver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
@@ -18,28 +14,16 @@ import kotlinx.coroutines.sync.Semaphore
 import org.github.jamm.MemoryMeter
 import java.io.ByteArrayOutputStream
 import java.nio.file.Path
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.util.Locale
 import java.util.Random
 import java.util.concurrent.ThreadLocalRandom
 import kotlin.io.path.createDirectories
 import kotlin.io.path.createFile
 import kotlin.io.path.exists
-
-val jackson: ObjectMapper by lazy {
-    ObjectMapper().findAndRegisterModules()
-        .applyProjectDefaults()
-}
-
-val prettyJackson: ObjectWriter by lazy { jackson.writerWithDefaultPrettyPrinter() }
-
-fun ObjectMapper.applyProjectDefaults(): ObjectMapper = apply {
-    registerModule(SimpleModule().apply {
-        addAbstractTypeMapping(Set::class.java, LinkedHashSet::class.java)
-    })
-    setSerializationInclusion(JsonInclude.Include.NON_NULL)
-    disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-    enable(DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS)
-}
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.nanoseconds
 
 private val resourceLoader by lazy { PathMatchingResourcePatternResolver() }
 
@@ -152,3 +136,35 @@ suspend fun <T> Flow<T>.parCollect(
         }
     }
 }
+
+/**
+ * Returns a string representation of the duration in seconds, with increased precision when the time is below one
+ * second.
+ *
+ * @return a formatted string representation of the duration in seconds.
+ */
+fun Duration.formattedSeconds(): String {
+    val secondsDouble = inWholeMilliseconds / 1000.0
+    val pattern = when {
+        inWholeSeconds <= 0 -> "#.##"
+        else -> "#,###.#"
+    }
+    val format = DecimalFormat(pattern, DecimalFormatSymbols(Locale.US))
+    return format.format(secondsDouble)
+}
+
+/**
+ * Convenience method to get a nice representation of time elapsed in millis just from the starting
+ * time.
+ *
+ * Use [System.nanoTime] to get the starting time, then pass it to this method to get the elapsed
+ * time formatted.
+ */
+fun millisElapsedUntilNow(startNanos: Long): String = (System.nanoTime() - startNanos).nanoseconds.inWholeMilliseconds.toString()
+
+/**
+ * Convenience method to get a nice representation of time elapsed in seconds just from the starting time.
+ *
+ * Use [System.nanoTime] to get the starting time, then pass it to this method to get the elapsed time formatted.
+ */
+fun secondsElapsedUntilNow(startNanos: Long): String = (System.nanoTime() - startNanos).nanoseconds.formattedSeconds()

@@ -223,26 +223,37 @@ public class GainAnalysis {
 	 * When calling this procedure, make sure that ip[-order] and op[-order]
 	 * point to real data
 	 */
-	private void filterYule(final float[] input, int inputPos, float[] output,
-			int outputPos, int nSamples, final float[] kernel) {
-
+	private void filterYule(
+        final float[] input,
+        int inputPos,
+        float[] output,
+        int outputPos, // 10
+        int nSamples,  // 0 or 2195
+        final float[] kernel
+    ) {
 		while ((nSamples--) != 0) {
 			/* 1e-10 is a hack to avoid slowdown because of denormals */
 			output[outputPos] = 1e-10f + input[inputPos + 0] * kernel[0]
-					- output[outputPos - 1] * kernel[1] + input[inputPos - 1]
-					* kernel[2] - output[outputPos - 2] * kernel[3]
-					+ input[inputPos - 2] * kernel[4] - output[outputPos - 3]
-					* kernel[5] + input[inputPos - 3] * kernel[6]
-					- output[outputPos - 4] * kernel[7] + input[inputPos - 4]
-					* kernel[8] - output[outputPos - 5] * kernel[9]
-					+ input[inputPos - 5] * kernel[10] - output[outputPos - 6]
-					* kernel[11] + input[inputPos - 6] * kernel[12]
-					- output[outputPos - 7] * kernel[13] + input[inputPos - 7]
-					* kernel[14] - output[outputPos - 8] * kernel[15]
-					+ input[inputPos - 8] * kernel[16] - output[outputPos - 9]
-					* kernel[17] + input[inputPos - 9] * kernel[18]
-					- output[outputPos - 10] * kernel[19]
-					+ input[inputPos - 10] * kernel[20];
+                - output[outputPos - 1] * kernel[1]
+                + input[inputPos - 1] * kernel[2]
+                - output[outputPos - 2] * kernel[3]
+                + input[inputPos - 2] * kernel[4]
+                - output[outputPos - 3] * kernel[5]
+                + input[inputPos - 3] * kernel[6]
+                - output[outputPos - 4] * kernel[7]
+                + input[inputPos - 4] * kernel[8]
+                - output[outputPos - 5] * kernel[9]
+                + input[inputPos - 5] * kernel[10]
+                - output[outputPos - 6] * kernel[11]
+                + input[inputPos - 6] * kernel[12]
+                - output[outputPos - 7] * kernel[13]
+                + input[inputPos - 7] * kernel[14]
+                - output[outputPos - 8] * kernel[15]
+                + input[inputPos - 8] * kernel[16]
+                - output[outputPos - 9] * kernel[17]
+                + input[inputPos - 9] * kernel[18]
+                - output[outputPos - 10] * kernel[19]
+                + input[inputPos - 10] * kernel[20];
 			++outputPos;
 			++inputPos;
 		}
@@ -253,9 +264,10 @@ public class GainAnalysis {
 
 		while ((nSamples--) != 0) {
 			output[outputPos] = input[inputPos + 0] * kernel[0]
-					- output[outputPos - 1] * kernel[1] + input[inputPos - 1]
-					* kernel[2] - output[outputPos - 2] * kernel[3]
-					+ input[inputPos - 2] * kernel[4];
+                - output[outputPos - 1] * kernel[1]
+                + input[inputPos - 1] * kernel[2]
+                - output[outputPos - 2] * kernel[3]
+                + input[inputPos - 2] * kernel[4];
 			++outputPos;
 			++inputPos;
 		}
@@ -315,8 +327,7 @@ public class GainAnalysis {
 		return INIT_GAIN_ANALYSIS_OK;
 	}
 
-	public final int InitGainAnalysis(final ReplayGain rgData,
-			final long samplefreq) {
+	public final int InitGainAnalysis(final ReplayGain rgData, final long samplefreq) {
 		if (ResetSampleFrequency(rgData, samplefreq) != INIT_GAIN_ANALYSIS_OK) {
 			return INIT_GAIN_ANALYSIS_ERROR;
 		}
@@ -340,14 +351,19 @@ public class GainAnalysis {
 		return d * d;
 	}
 
-	public final int AnalyzeSamples(final ReplayGain rgData,
-			final float[] left_samples, final int left_samplesPos,
-			float[] right_samples, int right_samplesPos, final int num_samples,
-			final int num_channels) {
+	public final int AnalyzeSamples(
+        final ReplayGain rgData,
+        final float[] left_samples,
+        final int left_samplesPos,
+        float[] right_samples,
+        int right_samplesPos,
+        final int num_samples,
+        final int num_channels
+    ) {
 		int currentLeft;
-		float[] curleftBase;
+		float[] currentLeftArray;
 		int currentRight;
-		float[] currightBase;
+		float[] currentRightArray;
 		int samplesRemaining;
 		int currentSamples;
 		int currentSamplePos;
@@ -369,37 +385,29 @@ public class GainAnalysis {
 			return GAIN_ANALYSIS_ERROR;
 		}
 
-		if (num_samples < MAX_ORDER) {
-			System.arraycopy(left_samples, left_samplesPos, rgData.linprebuf,
-					MAX_ORDER, num_samples);
-			System.arraycopy(right_samples, right_samplesPos, rgData.rinprebuf,
-					MAX_ORDER, num_samples);
-		} else {
-			System.arraycopy(left_samples, left_samplesPos, rgData.linprebuf,
-					MAX_ORDER, MAX_ORDER);
-			System.arraycopy(right_samples, right_samplesPos, rgData.rinprebuf,
-					MAX_ORDER, MAX_ORDER);
-		}
+        // Copy the first MAX_ORDER samples to the end of the "previous buffer"
+        System.arraycopy(left_samples, left_samplesPos, rgData.linprebuf, MAX_ORDER, Math.min(num_samples, MAX_ORDER));
+        System.arraycopy(right_samples, right_samplesPos, rgData.rinprebuf, MAX_ORDER, Math.min(num_samples, MAX_ORDER));
 
 		while (samplesRemaining > 0) {
 			currentSamples = Math.min(samplesRemaining, rgData.sampleWindowSize - rgData.totalAmountOfProcessedSamples);
 			if (currentSamplePos < MAX_ORDER) {
 				currentLeft = rgData.linpre + currentSamplePos;
-				curleftBase = rgData.linprebuf;
+				currentLeftArray = rgData.linprebuf;
 				currentRight = rgData.rinpre + currentSamplePos;
-				currightBase = rgData.rinprebuf;
+				currentRightArray = rgData.rinprebuf;
 				if (currentSamples > MAX_ORDER - currentSamplePos)
 					currentSamples = MAX_ORDER - currentSamplePos;
 			} else {
 				currentLeft = left_samplesPos + currentSamplePos;
-				curleftBase = left_samples;
+				currentLeftArray = left_samples;
 				currentRight = right_samplesPos + currentSamplePos;
-				currightBase = right_samples;
+				currentRightArray = right_samples;
 			}
 
-			filterYule(curleftBase, currentLeft, rgData.leftYuleOutput, rgData.lstep
+			filterYule(currentLeftArray, currentLeft, rgData.leftYuleOutput, rgData.lstep
 					+ rgData.totalAmountOfProcessedSamples, currentSamples, ABYule[rgData.freqindex]);
-			filterYule(currightBase, currentRight, rgData.rightYuleOutput, rgData.rstep
+			filterYule(currentRightArray, currentRight, rgData.rightYuleOutput, rgData.rstep
 					+ rgData.totalAmountOfProcessedSamples, currentSamples, ABYule[rgData.freqindex]);
 
 			filterButter(rgData.leftYuleOutput, rgData.lstep + rgData.totalAmountOfProcessedSamples,
@@ -411,34 +419,34 @@ public class GainAnalysis {
 
 			currentLeft = rgData.lout + rgData.totalAmountOfProcessedSamples;
 			/* Get the squared values */
-			curleftBase = rgData.leftButterOutput;
+			currentLeftArray = rgData.leftButterOutput;
 			currentRight = rgData.rout + rgData.totalAmountOfProcessedSamples;
-			currightBase = rgData.rightButterOutput;
+			currentRightArray = rgData.rightButterOutput;
 
 			int i = currentSamples % 8;
 			while ((i--) != 0) {
-				rgData.lsum += fsqr(curleftBase[currentLeft++]);
-				rgData.rsum += fsqr(currightBase[currentRight++]);
+				rgData.lsum += fsqr(currentLeftArray[currentLeft++]);
+				rgData.rsum += fsqr(currentRightArray[currentRight++]);
 			}
 			i = currentSamples / 8;
 			while ((i--) != 0) {
-				rgData.lsum += fsqr(curleftBase[currentLeft + 0])
-						+ fsqr(curleftBase[currentLeft + 1])
-						+ fsqr(curleftBase[currentLeft + 2])
-						+ fsqr(curleftBase[currentLeft + 3])
-						+ fsqr(curleftBase[currentLeft + 4])
-						+ fsqr(curleftBase[currentLeft + 5])
-						+ fsqr(curleftBase[currentLeft + 6])
-						+ fsqr(curleftBase[currentLeft + 7]);
+				rgData.lsum += fsqr(currentLeftArray[currentLeft + 0])
+						+ fsqr(currentLeftArray[currentLeft + 1])
+						+ fsqr(currentLeftArray[currentLeft + 2])
+						+ fsqr(currentLeftArray[currentLeft + 3])
+						+ fsqr(currentLeftArray[currentLeft + 4])
+						+ fsqr(currentLeftArray[currentLeft + 5])
+						+ fsqr(currentLeftArray[currentLeft + 6])
+						+ fsqr(currentLeftArray[currentLeft + 7]);
 				currentLeft += 8;
-				rgData.rsum += fsqr(currightBase[currentRight + 0])
-						+ fsqr(currightBase[currentRight + 1])
-						+ fsqr(currightBase[currentRight + 2])
-						+ fsqr(currightBase[currentRight + 3])
-						+ fsqr(currightBase[currentRight + 4])
-						+ fsqr(currightBase[currentRight + 5])
-						+ fsqr(currightBase[currentRight + 6])
-						+ fsqr(currightBase[currentRight + 7]);
+				rgData.rsum += fsqr(currentRightArray[currentRight + 0])
+						+ fsqr(currentRightArray[currentRight + 1])
+						+ fsqr(currentRightArray[currentRight + 2])
+						+ fsqr(currentRightArray[currentRight + 3])
+						+ fsqr(currentRightArray[currentRight + 4])
+						+ fsqr(currentRightArray[currentRight + 5])
+						+ fsqr(currentRightArray[currentRight + 6])
+						+ fsqr(currentRightArray[currentRight + 7]);
 				currentRight += 8;
 			}
 
@@ -470,7 +478,7 @@ public class GainAnalysis {
 			if (rgData.totalAmountOfProcessedSamples > rgData.sampleWindowSize) {
 				/*
 				 * somehow I really screwed up: Error in programming! Contact
-				 * author about totsamp > sampleWindow
+				 * author about totalAmountOfProcessedSamples > sampleWindow
 				 */
 				return GAIN_ANALYSIS_ERROR;
 			}

@@ -4,6 +4,7 @@ package com.github.secretx33.mp3volume.mp3
 
 import jdk.jfr.Name
 import java.util.TreeMap
+import kotlin.math.min
 
 private val ABYule = treeMapOf(
     96000 to arrayOf(0.006471345933032, -7.22103125152679, -0.02567678242161, 24.7034187975904, 0.049805860704367, -52.6825833623896, -0.05823001743528, 77.4825736677539, 0.040611847441914, -82.0074753444205, -0.010912036887501, 63.1566097101925, -0.00901635868667, -34.889569769245, 0.012448886238123, 13.2126852760198, -0.007206683749426, -3.09445623301669, 0.002167156433951, 0.340344741393305, -0.000261819276949),
@@ -24,7 +25,7 @@ private val ABButter = treeMapOf(
     96000 to arrayOf(0.99308203517541, -1.98611621154089, -1.98616407035082, 0.986211929160751, 0.99308203517541),
     88200 to arrayOf(0.992472550461293,-1.98488843762334, -1.98494510092258, 0.979389350028798, 0.992472550461293),
     64000 to arrayOf(0.989641019334721,-1.97917472731008, -1.97928203866944, 0.979389350028798, 0.989641019334721),
-    48000 to arrayOf(0.98621192462708, -1.97223372919527, -1.97242384925416, 0.97261396931306, 0.98621192462708 ),
+    48000 to arrayOf(0.98621192462708, -1.97223372919527, -1.97242384925416, 0.97261396931306, 0.98621192462708),
     44100 to arrayOf(0.98500175787242, -1.96977855582618, -1.97000351574484, 0.97022847566350, 0.98500175787242),
     32000 to arrayOf(0.97938932735214, -1.95835380975398, -1.95877865470428, 0.95920349965459, 0.97938932735214),
     24000 to arrayOf(0.97531843204928, -1.95002759149878, -1.95063686409857, 0.95124613669835, 0.97531843204928),
@@ -35,16 +36,67 @@ private val ABButter = treeMapOf(
     8000 to arrayOf(0.94597685600279, -1.88903307939452, -1.89195371200558, 0.89487434461664, 0.94597685600279),
 )
 
-//private fun applyButterworthFilter(
-//    input: Collection<Double>,
-//    sampleRate: Int,
-//): Collection<Double> {
-//    val key = setOf(ABButter.floorKey(sampleRate), ABButter.ceilingKey(sampleRate))
-//        .minBy { (sampleRate - it).absoluteValue }
-//    val kernel = ABButter[key]!!
-//
-//    ABYule.
-//}
+/**
+ * Transforms the audio [samples] by approximating their values to those perceived by the
+ * human ear using Yulewalk and Butterworth IIR filters.
+ */
+fun applyLoudnessNormalizeFilter(samples: DoubleArray): DoubleArray {
+    val yulewalkCoeffs = FilterCoefficients(
+        a = listOf(1.0, -3.84664617118067, 7.81501653005538, -11.34170355132042, 13.05504219327545, -12.28759895145294, 9.48293806319790, -5.87257861775999, 2.75465861874613, -0.86984376593551, 0.13919314567432),
+        b = listOf(0.03857599435200, -0.02160367184185, -0.00123395316851, -0.00009291677959, -0.01655260341619, 0.02161526843274, -0.02074045215285, 0.00594298065125, 0.00306428023191, 0.00012025322027, 0.00288463683916)
+    )
+    val butterworthCoeffs = FilterCoefficients(
+        a = listOf(1.0, -1.97223372919527, 0.97261396931306),
+        b = listOf(0.98621192462708, -1.97242384925416, 0.98621192462708)
+    )
+
+    // Apply Yulewalk filter
+    val filteredYulewalk = applyIIRFilter(samples, yulewalkCoeffs)
+
+    // Apply Butterworth filter
+    val filteredButterworth = applyIIRFilter(filteredYulewalk, butterworthCoeffs)
+
+    return filteredButterworth
+}
+
+// IIR (Infinite Impulse Response) filter
+private fun applyIIRFilter(input: DoubleArray, coeffs: FilterCoefficients): DoubleArray {
+    val output = DoubleArray(input.size)
+    val bufferSize = coeffs.size
+    val a = coeffs.a
+    val b = coeffs.b
+
+    input.indices.forEach { n ->
+        var sumA = 0.0
+        for (i in 1 until min(bufferSize, n)) {
+            sumA += a[i] * output[n - i]
+        }
+
+        var sumB = 0.0
+        for (i in 0 until min(bufferSize, n + 1)) {
+            sumB += b[i] * input[n - i]
+        }
+
+        val result = sumB - sumA
+        check(result.isFinite()) { "Somehow, the applying IIR filter has return a bogus value ($result), there's something very wrong in this code or the input" }
+
+        output[n] = result
+    }
+
+    return output
+}
+
+private data class FilterCoefficients(val a: List<Double>, val b: List<Double>) {
+    init {
+        require(a.size == b.size) { "Filter coefficients must have the same size, a = ${a.size}, b = ${b.size}" }
+    }
+    val size = a.size
+}
 
 private fun <K : Any, V> treeMapOf(vararg pairs: Pair<K, V>): TreeMap<K, V> =
     TreeMap<K, V>().apply { putAll(pairs) }
+
+private fun <K : Comparable<K>, V> TreeMap<K, V>.getClosest(key: K): V {
+    val closestKey = setOf(floorKey(key), ceilingKey(key)).minBy(key::compareTo)
+    return get(closestKey)!!
+}
