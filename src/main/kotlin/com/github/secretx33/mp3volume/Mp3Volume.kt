@@ -3,7 +3,7 @@
 
 package com.github.secretx33.mp3volume
 
-import com.github.secretx33.mp3volume.mp3.applyLoudnessNormalizeFilter
+import com.github.secretx33.mp3volume.mp3.applyLoudnessNormalizeFilters
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.lang.invoke.MethodHandles
@@ -30,7 +30,7 @@ fun main(args: Array<String>) {
     val start = System.nanoTime().nanoseconds
 
     try {
-        val file = File("E:\\untitled.mp3")
+        val file = File("E:\\songs\\Kawaii Kitchen!.mp3")
         AudioSystem.getAudioInputStream(file).use { rawInput ->
             val baseFormat = rawInput.format
             val decodedFormat = AudioFormat(
@@ -79,12 +79,12 @@ fun main(args: Array<String>) {
                         val start = System.nanoTime().nanoseconds
 
                         val loudnessNormalizedSamples = samples.first().indices.map { sampleIndex ->
-                            applyLoudnessNormalizeFilter(samples.mapNotNull { it.getOrNull(sampleIndex) }.toDoubleArray(), decodedFormat.sampleRate.toInt())
+                            applyLoudnessNormalizeFilters(samples.mapNotNull { it.getOrNull(sampleIndex) }.toDoubleArray(), decodedFormat.sampleRate.toInt())
                         }
                         val channelsMeanSquared = loudnessNormalizedSamples.map {
                             it.toList().meanSquared()
                         }
-                        val rootMeanAverage = sqrt(channelsMeanSquared.average())
+                        val rootMeanAverage = channelsMeanSquared.average()
                         rootMeanAverage
                             .also { log.info("${index + 1}. Average: $it (${it.toDecibels()}dB) (${(System.nanoTime().nanoseconds - start).inWholeMicroseconds}mc)") }
                     }.toList()
@@ -115,7 +115,7 @@ fun Iterable<Double>.meanSquared(): Double = map { it.pow(2) }.average()
 
 fun Iterable<Double>.rootMeanSquared(): Double = sqrt(meanSquared())
 
-fun Double.toDecibels(): Double = 10 * log10(this + 10e-10)
+fun Double.toDecibels(): Double = 10 * log10(this + 10e-37)
 
 fun ByteArray.frameToNormalizedSamples(): List<Double> {
     require(size % 2 == 0) { "Frame size must be multiple of 2, but $size is not" }

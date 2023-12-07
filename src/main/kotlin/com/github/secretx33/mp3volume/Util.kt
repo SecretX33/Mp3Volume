@@ -28,6 +28,7 @@ import java.util.concurrent.ThreadLocalRandom
 import kotlin.io.path.createDirectories
 import kotlin.io.path.createFile
 import kotlin.io.path.exists
+import kotlin.reflect.typeOf
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.nanoseconds
 
@@ -48,7 +49,14 @@ fun ObjectMapper.applyProjectDefaults(): ObjectMapper = apply {
 
 private val resourceLoader by lazy { PathMatchingResourcePatternResolver() }
 
-inline fun <reified T : Any> readResource(path: String): T = objectMapper.readValue<T>(getResourceAsString(path))
+inline fun <reified T : Any> readResource(path: String): T {
+    val resource = getResourceAsString(path)
+    return try {
+        objectMapper.readValue<T>(resource)
+    } catch (e: Exception) {
+        throw IllegalArgumentException("Failed to parse resource '$path' into type ${typeOf<T>()}", e)
+    }
+}
 
 fun getResourceAsString(name: String): String {
     val resource = resourceLoader.getResource("$CLASSPATH_URL_PREFIX$name")

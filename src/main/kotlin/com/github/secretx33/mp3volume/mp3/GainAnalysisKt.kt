@@ -15,7 +15,7 @@ private val butterworthCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("
  * Transforms the audio [samples] by approximating their values to those perceived by the
  * human ear using Yulewalk and Butterworth IIR filters.
  */
-fun applyLoudnessNormalizeFilter(samples: DoubleArray, sampleRate: Int): DoubleArray {
+fun applyLoudnessNormalizeFilters(samples: DoubleArray, sampleRate: Int): DoubleArray {
     val yulewalkCoeffs = yulewalkCoeffs.getClosest(sampleRate)
     val butterworthCoeffs = butterworthCoeffs.getClosest(sampleRate)
 
@@ -26,7 +26,9 @@ fun applyLoudnessNormalizeFilter(samples: DoubleArray, sampleRate: Int): DoubleA
     return filteredButterworth
 }
 
-// IIR (Infinite Impulse Response) filter
+/**
+ * Apply an IIR (Infinite Impulse Response) filter, returning a copy of the `input` array.
+ */
 private fun applyIIRFilter(input: DoubleArray, coeffs: FilterCoefficients): DoubleArray {
     val output = DoubleArray(input.size)
     val bufferSize = coeffs.size
@@ -45,7 +47,7 @@ private fun applyIIRFilter(input: DoubleArray, coeffs: FilterCoefficients): Doub
         }
 
         val result = sumB - sumA
-        check(result.isFinite()) { "Somehow, the applying IIR filter has return a bogus value ($result), there's something very wrong in this code or the input" }
+        require(result.isFinite()) { "Somehow, the applying IIR filter has return a bogus value ($result), there's something very wrong in this code or the input" }
 
         output[n] = result
     }
@@ -59,9 +61,6 @@ private data class FilterCoefficients(val a: List<Double>, val b: List<Double>) 
     }
     val size = a.size
 }
-
-private fun <K : Any, V> treeMapOf(vararg pairs: Pair<K, V>): TreeMap<K, V> =
-    TreeMap<K, V>().apply { putAll(pairs) }
 
 private fun <K : Comparable<K>, V> TreeMap<K, V>.getClosest(key: K): V {
     val closestKey = setOfNotNull(floorKey(key), ceilingKey(key)).minBy(key::compareTo)
