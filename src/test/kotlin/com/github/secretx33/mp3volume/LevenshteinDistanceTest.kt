@@ -1,4 +1,4 @@
-package com.github.secretx33.kotlinplayground
+package com.github.secretx33.mp3volume
 
 import org.junit.jupiter.api.RepeatedTest
 import kotlin.random.asKotlinRandom

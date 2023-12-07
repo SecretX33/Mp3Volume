@@ -87,7 +87,7 @@
  *
  *  Optimization/clarity suggestions are welcome.
  */
-package com.github.secretx33.kotlinplayground.mp3;
+package com.github.secretx33.mp3volume.mp3;
 
 import java.util.Arrays;
 
@@ -269,7 +269,7 @@ public class GainAnalysis {
 			final long samplefreq) {
 		/* zero out initial values */
 		for (int i = 0; i < MAX_ORDER; i++)
-			rgData.linprebuf[i] = rgData.lstepbuf[i] = rgData.loutbuf[i] = rgData.rinprebuf[i] = rgData.rstepbuf[i] = rgData.routbuf[i] = 0.f;
+			rgData.linprebuf[i] = rgData.leftYuleOutput[i] = rgData.leftButterOutput[i] = rgData.rinprebuf[i] = rgData.rightYuleOutput[i] = rgData.rightButterOutput[i] = 0.f;
 
 		switch ((int) (samplefreq)) {
 		case 48000:
@@ -303,12 +303,12 @@ public class GainAnalysis {
 			return INIT_GAIN_ANALYSIS_ERROR;
 		}
 
-		rgData.sampleWindow = (int) ((samplefreq * RMS_WINDOW_TIME_NUMERATOR
+		rgData.sampleWindowSize = (int) ((samplefreq * RMS_WINDOW_TIME_NUMERATOR
 				+ RMS_WINDOW_TIME_DENOMINATOR - 1) / RMS_WINDOW_TIME_DENOMINATOR);
 
 		rgData.lsum = 0.;
 		rgData.rsum = 0.;
-		rgData.totsamp = 0;
+		rgData.totalAmountOfProcessedSamples = 0;
 
 		Arrays.fill(rgData.A, 0);
 
@@ -344,19 +344,19 @@ public class GainAnalysis {
 			final float[] left_samples, final int left_samplesPos,
 			float[] right_samples, int right_samplesPos, final int num_samples,
 			final int num_channels) {
-		int curleft;
+		int currentLeft;
 		float[] curleftBase;
-		int curright;
+		int currentRight;
 		float[] currightBase;
-		int batchsamples;
-		int cursamples;
-		int cursamplepos;
+		int samplesRemaining;
+		int currentSamples;
+		int currentSamplePos;
 
 		if (num_samples == 0)
 			return GAIN_ANALYSIS_OK;
 
-		cursamplepos = 0;
-		batchsamples = num_samples;
+		currentSamplePos = 0;
+		samplesRemaining = num_samples;
 
 		switch (num_channels) {
 		case 1:
@@ -381,95 +381,93 @@ public class GainAnalysis {
 					MAX_ORDER, MAX_ORDER);
 		}
 
-		while (batchsamples > 0) {
-			cursamples = batchsamples > rgData.sampleWindow - rgData.totsamp ? rgData.sampleWindow
-					- rgData.totsamp
-					: batchsamples;
-			if (cursamplepos < MAX_ORDER) {
-				curleft = rgData.linpre + cursamplepos;
+		while (samplesRemaining > 0) {
+			currentSamples = Math.min(samplesRemaining, rgData.sampleWindowSize - rgData.totalAmountOfProcessedSamples);
+			if (currentSamplePos < MAX_ORDER) {
+				currentLeft = rgData.linpre + currentSamplePos;
 				curleftBase = rgData.linprebuf;
-				curright = rgData.rinpre + cursamplepos;
+				currentRight = rgData.rinpre + currentSamplePos;
 				currightBase = rgData.rinprebuf;
-				if (cursamples > MAX_ORDER - cursamplepos)
-					cursamples = MAX_ORDER - cursamplepos;
+				if (currentSamples > MAX_ORDER - currentSamplePos)
+					currentSamples = MAX_ORDER - currentSamplePos;
 			} else {
-				curleft = left_samplesPos + cursamplepos;
+				currentLeft = left_samplesPos + currentSamplePos;
 				curleftBase = left_samples;
-				curright = right_samplesPos + cursamplepos;
+				currentRight = right_samplesPos + currentSamplePos;
 				currightBase = right_samples;
 			}
 
-			filterYule(curleftBase, curleft, rgData.lstepbuf, rgData.lstep
-					+ rgData.totsamp, cursamples, ABYule[rgData.freqindex]);
-			filterYule(currightBase, curright, rgData.rstepbuf, rgData.rstep
-					+ rgData.totsamp, cursamples, ABYule[rgData.freqindex]);
+			filterYule(curleftBase, currentLeft, rgData.leftYuleOutput, rgData.lstep
+					+ rgData.totalAmountOfProcessedSamples, currentSamples, ABYule[rgData.freqindex]);
+			filterYule(currightBase, currentRight, rgData.rightYuleOutput, rgData.rstep
+					+ rgData.totalAmountOfProcessedSamples, currentSamples, ABYule[rgData.freqindex]);
 
-			filterButter(rgData.lstepbuf, rgData.lstep + rgData.totsamp,
-					rgData.loutbuf, rgData.lout + rgData.totsamp, cursamples,
+			filterButter(rgData.leftYuleOutput, rgData.lstep + rgData.totalAmountOfProcessedSamples,
+					rgData.leftButterOutput, rgData.lout + rgData.totalAmountOfProcessedSamples, currentSamples,
 					ABButter[rgData.freqindex]);
-			filterButter(rgData.rstepbuf, rgData.rstep + rgData.totsamp,
-					rgData.routbuf, rgData.rout + rgData.totsamp, cursamples,
+			filterButter(rgData.rightYuleOutput, rgData.rstep + rgData.totalAmountOfProcessedSamples,
+					rgData.rightButterOutput, rgData.rout + rgData.totalAmountOfProcessedSamples, currentSamples,
 					ABButter[rgData.freqindex]);
 
-			curleft = rgData.lout + rgData.totsamp;
+			currentLeft = rgData.lout + rgData.totalAmountOfProcessedSamples;
 			/* Get the squared values */
-			curleftBase = rgData.loutbuf;
-			curright = rgData.rout + rgData.totsamp;
-			currightBase = rgData.routbuf;
+			curleftBase = rgData.leftButterOutput;
+			currentRight = rgData.rout + rgData.totalAmountOfProcessedSamples;
+			currightBase = rgData.rightButterOutput;
 
-			int i = cursamples % 8;
+			int i = currentSamples % 8;
 			while ((i--) != 0) {
-				rgData.lsum += fsqr(curleftBase[curleft++]);
-				rgData.rsum += fsqr(currightBase[curright++]);
+				rgData.lsum += fsqr(curleftBase[currentLeft++]);
+				rgData.rsum += fsqr(currightBase[currentRight++]);
 			}
-			i = cursamples / 8;
+			i = currentSamples / 8;
 			while ((i--) != 0) {
-				rgData.lsum += fsqr(curleftBase[curleft + 0])
-						+ fsqr(curleftBase[curleft + 1])
-						+ fsqr(curleftBase[curleft + 2])
-						+ fsqr(curleftBase[curleft + 3])
-						+ fsqr(curleftBase[curleft + 4])
-						+ fsqr(curleftBase[curleft + 5])
-						+ fsqr(curleftBase[curleft + 6])
-						+ fsqr(curleftBase[curleft + 7]);
-				curleft += 8;
-				rgData.rsum += fsqr(currightBase[curright + 0])
-						+ fsqr(currightBase[curright + 1])
-						+ fsqr(currightBase[curright + 2])
-						+ fsqr(currightBase[curright + 3])
-						+ fsqr(currightBase[curright + 4])
-						+ fsqr(currightBase[curright + 5])
-						+ fsqr(currightBase[curright + 6])
-						+ fsqr(currightBase[curright + 7]);
-				curright += 8;
+				rgData.lsum += fsqr(curleftBase[currentLeft + 0])
+						+ fsqr(curleftBase[currentLeft + 1])
+						+ fsqr(curleftBase[currentLeft + 2])
+						+ fsqr(curleftBase[currentLeft + 3])
+						+ fsqr(curleftBase[currentLeft + 4])
+						+ fsqr(curleftBase[currentLeft + 5])
+						+ fsqr(curleftBase[currentLeft + 6])
+						+ fsqr(curleftBase[currentLeft + 7]);
+				currentLeft += 8;
+				rgData.rsum += fsqr(currightBase[currentRight + 0])
+						+ fsqr(currightBase[currentRight + 1])
+						+ fsqr(currightBase[currentRight + 2])
+						+ fsqr(currightBase[currentRight + 3])
+						+ fsqr(currightBase[currentRight + 4])
+						+ fsqr(currightBase[currentRight + 5])
+						+ fsqr(currightBase[currentRight + 6])
+						+ fsqr(currightBase[currentRight + 7]);
+				currentRight += 8;
 			}
 
-			batchsamples -= cursamples;
-			cursamplepos += cursamples;
-			rgData.totsamp += cursamples;
-			if (rgData.totsamp == rgData.sampleWindow) {
+			samplesRemaining -= currentSamples;
+			currentSamplePos += currentSamples;
+			rgData.totalAmountOfProcessedSamples += currentSamples;
+			if (rgData.totalAmountOfProcessedSamples == rgData.sampleWindowSize) {
 				/* Get the Root Mean Square (RMS) for this set of samples */
 				final double val = STEPS_per_dB
 						* 10.
 						* Math.log10((rgData.lsum + rgData.rsum)
-								/ rgData.totsamp * 0.5 + 1.e-37);
+								/ rgData.totalAmountOfProcessedSamples / 2 + 1.e-37);
 				int ival = (val <= 0) ? 0 : (int) val;
 				if (ival >= rgData.A.length)
 					ival = rgData.A.length - 1;
 				rgData.A[ival]++;
 				rgData.lsum = rgData.rsum = 0.;
 
-				System.arraycopy(rgData.loutbuf, rgData.totsamp,
-						rgData.loutbuf, 0, MAX_ORDER);
-				System.arraycopy(rgData.routbuf, rgData.totsamp,
-						rgData.routbuf, 0, MAX_ORDER);
-				System.arraycopy(rgData.lstepbuf, rgData.totsamp,
-						rgData.lstepbuf, 0, MAX_ORDER);
-				System.arraycopy(rgData.rstepbuf, rgData.totsamp,
-						rgData.rstepbuf, 0, MAX_ORDER);
-				rgData.totsamp = 0;
+				System.arraycopy(rgData.leftButterOutput, rgData.totalAmountOfProcessedSamples,
+						rgData.leftButterOutput, 0, MAX_ORDER);
+				System.arraycopy(rgData.rightButterOutput, rgData.totalAmountOfProcessedSamples,
+						rgData.rightButterOutput, 0, MAX_ORDER);
+				System.arraycopy(rgData.leftYuleOutput, rgData.totalAmountOfProcessedSamples,
+						rgData.leftYuleOutput, 0, MAX_ORDER);
+				System.arraycopy(rgData.rightYuleOutput, rgData.totalAmountOfProcessedSamples,
+						rgData.rightYuleOutput, 0, MAX_ORDER);
+				rgData.totalAmountOfProcessedSamples = 0;
 			}
-			if (rgData.totsamp > rgData.sampleWindow) {
+			if (rgData.totalAmountOfProcessedSamples > rgData.sampleWindowSize) {
 				/*
 				 * somehow I really screwed up: Error in programming! Contact
 				 * author about totsamp > sampleWindow
@@ -523,9 +521,9 @@ public class GainAnalysis {
 		}
 
 		for (int i = 0; i < MAX_ORDER; i++)
-			rgData.linprebuf[i] = rgData.lstepbuf[i] = rgData.loutbuf[i] = rgData.rinprebuf[i] = rgData.rstepbuf[i] = rgData.routbuf[i] = 0.f;
+			rgData.linprebuf[i] = rgData.leftYuleOutput[i] = rgData.leftButterOutput[i] = rgData.rinprebuf[i] = rgData.rightYuleOutput[i] = rgData.rightButterOutput[i] = 0.f;
 
-		rgData.totsamp = 0;
+		rgData.totalAmountOfProcessedSamples = 0;
 		rgData.lsum = rgData.rsum = 0.;
 		return retval;
 	}

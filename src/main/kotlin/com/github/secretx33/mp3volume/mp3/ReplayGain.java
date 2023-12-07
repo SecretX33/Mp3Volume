@@ -1,4 +1,4 @@
-package com.github.secretx33.kotlinplayground.mp3;
+package com.github.secretx33.mp3volume.mp3;
 
 public final class ReplayGain {
 	float linprebuf[] = new float[GainAnalysis.MAX_ORDER * 2];
@@ -6,12 +6,12 @@ public final class ReplayGain {
 	 * left input samples, with pre-buffer
 	 */
 	int linpre;
-	float lstepbuf[] = new float[GainAnalysis.MAX_SAMPLES_PER_WINDOW + GainAnalysis.MAX_ORDER];
+	float leftYuleOutput[] = new float[GainAnalysis.MAX_SAMPLES_PER_WINDOW + GainAnalysis.MAX_ORDER];
 	/**
 	 * left "first step" (i.e. post first filter) samples
 	 */
 	int lstep;
-	float loutbuf[] = new float[GainAnalysis.MAX_SAMPLES_PER_WINDOW + GainAnalysis.MAX_ORDER];
+	float leftButterOutput[] = new float[GainAnalysis.MAX_SAMPLES_PER_WINDOW + GainAnalysis.MAX_ORDER];
 	/**
 	 * left "out" (i.e. post second filter) samples
 	 */
@@ -21,16 +21,16 @@ public final class ReplayGain {
 	 * right input samples ...
 	 */
 	int rinpre;
-	float rstepbuf[] = new float[GainAnalysis.MAX_SAMPLES_PER_WINDOW + GainAnalysis.MAX_ORDER];
+	float rightYuleOutput[] = new float[GainAnalysis.MAX_SAMPLES_PER_WINDOW + GainAnalysis.MAX_ORDER];
 	int rstep;
-	float routbuf[] = new float[GainAnalysis.MAX_SAMPLES_PER_WINDOW + GainAnalysis.MAX_ORDER];
+	float rightButterOutput[] = new float[GainAnalysis.MAX_SAMPLES_PER_WINDOW + GainAnalysis.MAX_ORDER];
 	int rout;
 	/**
 	 * number of samples required to reach number of milliseconds required
 	 * for RMS window
 	 */
-	int sampleWindow;
-	int totsamp;
+	int sampleWindowSize;
+	int totalAmountOfProcessedSamples;
 	double lsum;
 	double rsum;
 	int freqindex;

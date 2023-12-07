@@ -121,5 +121,3 @@ run/
 
 # Others
 *.sqlite
-/launch4j
-/Jar2Exe

@@ -1,8 +1,10 @@
 @file:Suppress("RemoveExplicitTypeArguments", "UnstableApiUsage", "RedundantSuspendModifier", "UNCHECKED_CAST")
 @file:OptIn(ExperimentalTime::class, ExperimentalPathApi::class)
 
-package com.github.secretx33.kotlinplayground
+package com.github.secretx33.mp3volume
 
+import com.github.secretx33.mp3volume.mp3.GainAnalysis
+import com.github.secretx33.mp3volume.mp3.ReplayGain
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.lang.invoke.MethodHandles
@@ -13,7 +15,6 @@ import javax.sound.sampled.AudioInputStream
 import javax.sound.sampled.AudioSystem
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.math.ceil
-import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -48,30 +49,52 @@ fun main(args: Array<String>) {
 
                 log.info("Chunk Size: $chunkSize (${(chunkSize * frameDuration.inWholeNanoseconds).nanoseconds.inWholeMilliseconds}ms)")
 
-                val chunkSamples = it.frameSequenceSimple().map { it.frameToNormalizedSamples() }
-                    .chunked(chunkSize)
-                    .mapIndexed { index, samples ->
-                        val start = System.nanoTime().nanoseconds
-                        val channelsSquared = samples.first().indices.map { sampleIndex ->
-                            samples.mapNotNull { it.getOrNull(sampleIndex) }.meanSquared()
-                        }
-                        sqrt(channelsSquared.average())
-                            .also { log.info("${index + 1}. Average: $it (${it.toDecibels()}dB) (${(System.nanoTime().nanoseconds - start).inWholeMicroseconds}mc)") }
-                    }.toList()
-                val sortedChunkSamples = chunkSamples.sorted()
+                val replayGain = ReplayGain()
+                val gainAnalysis = GainAnalysis().apply {
+                    InitGainAnalysis(replayGain, decodedFormat.sampleRate.toLong())
+                }
 
-                log.info("""
-                    Total Samples: ${chunkSamples.size} (in ${(System.nanoTime().nanoseconds - start).inWholeMilliseconds}ms)
-                    
-                    Min: ${sortedChunkSamples.first()} (${sortedChunkSamples.first().toDecibels()}dB)
-                    Max: ${sortedChunkSamples.last()} (${sortedChunkSamples.last().toDecibels()}dB)
-                    
-                    Median: ${sortedChunkSamples[sortedChunkSamples.size / 2]} (${sortedChunkSamples[sortedChunkSamples.size / 2].toDecibels()}dB)
-                    Mean: ${sortedChunkSamples.average()} (${sortedChunkSamples.average().toDecibels()}dB)
-                    RMS: ${sortedChunkSamples.rootMeanSquared()} (${sortedChunkSamples.rootMeanSquared().toDecibels()}dB)
-                    
-                    ReplayGain: ${sortedChunkSamples[floor(sortedChunkSamples.size.toDouble() * 0.95).toInt()]} (${sortedChunkSamples[floor(sortedChunkSamples.size.toDouble() * 0.95).toInt()].toDecibels()}dB)
-                """.trimIndent())
+                it.frameSequence().map { it.frameToNormalizedSamples().map { it.toFloat() } }
+                    .chunked(chunkSize)
+                    .forEach {
+                        gainAnalysis.AnalyzeSamples(
+                            replayGain,
+                            it.map { it[0] }.toFloatArray(),
+                            0,
+                            it.map { it.getOrElse(1) { _ -> it[0] } }.toFloatArray(),
+                            0,
+                            it.size,
+                            2,
+                        )
+                    }
+
+                val titleGain = gainAnalysis.GetTitleGain(replayGain)
+                log.info("Replay Gain: $titleGain (${titleGain.toDouble().toDecibels()}dB)")
+
+//                val chunkSamples = it.frameSequence().map { it.frameToNormalizedSamples() }
+//                    .chunked(chunkSize)
+//                    .mapIndexed { index, samples ->
+//                        val start = System.nanoTime().nanoseconds
+//                        val channelsSquared = samples.first().indices.map { sampleIndex ->
+//                            samples.mapNotNull { it.getOrNull(sampleIndex) }.meanSquared()
+//                        }
+//                        sqrt(channelsSquared.average())
+//                            .also { log.info("${index + 1}. Average: $it (${it.toDecibels()}dB) (${(System.nanoTime().nanoseconds - start).inWholeMicroseconds}mc)") }
+//                    }.toList()
+//                val sortedChunkSamples = chunkSamples.sorted()
+//
+//                log.info("""
+//                    Total Samples: ${chunkSamples.size} (in ${(System.nanoTime().nanoseconds - start).inWholeMilliseconds}ms)
+//
+//                    Min: ${sortedChunkSamples.first()} (${sortedChunkSamples.first().toDecibels()}dB)
+//                    Max: ${sortedChunkSamples.last()} (${sortedChunkSamples.last().toDecibels()}dB)
+//
+//                    Median: ${sortedChunkSamples[sortedChunkSamples.size / 2]} (${sortedChunkSamples[sortedChunkSamples.size / 2].toDecibels()}dB)
+//                    Mean: ${sortedChunkSamples.average()} (${sortedChunkSamples.average().toDecibels()}dB)
+//                    RMS: ${sortedChunkSamples.rootMeanSquared()} (${sortedChunkSamples.rootMeanSquared().toDecibels()}dB)
+//
+//                    ReplayGain: ${sortedChunkSamples[floor(sortedChunkSamples.size.toDouble() * 0.95).toInt()]} (${sortedChunkSamples[floor(sortedChunkSamples.size.toDouble() * 0.95).toInt()].toDecibels()}dB)
+//                """.trimIndent())
 
                 println()
             }
@@ -87,12 +110,6 @@ fun Iterable<Double>.rootMeanSquared(): Double = sqrt(meanSquared())
 
 fun Double.toDecibels(): Double = 10 * log10(this + 10e-10)
 
-fun ByteArray.frameToNormalizedSample(): Double {
-    require(size == 2) { "Frame size must be 2 bytes, but $size is not" }
-    val sample = ByteBuffer.wrap(this).order(ByteOrder.LITTLE_ENDIAN).getShort()
-    return (sample.toDouble() / 32768.0).coerceIn(-1.0, 1.0)
-}
-
 fun ByteArray.frameToNormalizedSamples(): List<Double> {
     require(size % 2 == 0) { "Frame size must be multiple of 2, but $size is not" }
     val samples = (0..lastIndex step 2).map {
@@ -102,7 +119,7 @@ fun ByteArray.frameToNormalizedSamples(): List<Double> {
     return samples
 }
 
-fun AudioInputStream.frameSequenceSimple(): Sequence<ByteArray> = sequence {
+fun AudioInputStream.frameSequence(): Sequence<ByteArray> = sequence {
     var readBytes: Int
     var buffer = ByteArray(format.frameSize)
     val buffered = buffered(DEFAULT_BUFFER_SIZE)

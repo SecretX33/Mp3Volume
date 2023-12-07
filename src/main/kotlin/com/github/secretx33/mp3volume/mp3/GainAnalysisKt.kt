@@ -1,6 +1,6 @@
 @file:Name("GainAnalysisKt")
 
-package com.github.secretx33.kotlinplayground.mp3
+package com.github.secretx33.mp3volume.mp3
 
 import jdk.jfr.Name
 import java.util.TreeMap

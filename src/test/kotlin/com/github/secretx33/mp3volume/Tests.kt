@@ -1,4 +1,4 @@
-package com.github.secretx33.kotlinplayground
+package com.github.secretx33.mp3volume
 
 import kotlin.test.Test
 

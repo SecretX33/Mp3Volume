@@ -1,4 +1,4 @@
-package com.github.secretx33.kotlinplayground
+package com.github.secretx33.mp3volume
 
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.DeserializationFeature
