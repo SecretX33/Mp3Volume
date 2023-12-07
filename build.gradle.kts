@@ -3,12 +3,11 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     id("com.github.johnrengelman.shadow") version "8.1.1"
     kotlin("jvm") version "1.9.21"
-//    id("org.beryx.runtime") version "1.9.0"
     application
 }
 
 group = "com.github.secretx33"
-version = "1.0-SNAPSHOT"
+version = "0.1"
 
 val javaVersion = 17
 
@@ -29,7 +28,6 @@ dependencies {
     implementation(platform("io.arrow-kt:arrow-stack:1.2.1"))
     implementation("io.arrow-kt:arrow-core")
     implementation("io.arrow-kt:arrow-fx-coroutines")
-    implementation("com.github.jbellis:jamm:0.4.0")  // VM arg: -javaagent:jamm-0.4.0.jar
     implementation("com.googlecode.soundlibs:mp3spi:1.9.5.4")
 }
 

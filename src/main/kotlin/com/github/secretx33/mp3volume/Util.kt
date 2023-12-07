@@ -17,20 +17,20 @@ import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
-import org.github.jamm.MemoryMeter
-import java.io.ByteArrayOutputStream
 import java.nio.file.Path
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
 import java.util.Random
 import java.util.concurrent.ThreadLocalRandom
+import javax.sound.sampled.AudioFormat
 import kotlin.io.path.createDirectories
 import kotlin.io.path.createFile
 import kotlin.io.path.exists
 import kotlin.reflect.typeOf
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.Duration.Companion.seconds
 
 val objectMapper: ObjectMapper by lazy {
     ObjectMapper().findAndRegisterModules().applyProjectDefaults()
@@ -75,37 +75,7 @@ val cpuThreadAmount: Int by lazy { Runtime.getRuntime().availableProcessors() }
 
 val random: Random get() = ThreadLocalRandom.current()
 
-fun <E> List<E>.replacedAt(intRange: IntRange, ruleTokens: List<E>): List<E> =
-    take(intRange.first) + ruleTokens + drop(intRange.last + 1)
-
-fun byteArrayOutputStream(block: (ByteArrayOutputStream) -> Unit): ByteArray = ByteArrayOutputStream().use {
-    block(it)
-    it.toByteArray()
-}
-
-fun Long.formatFileSize(): String = when {
-    this == Long.MIN_VALUE || this < 0 -> "N/A"
-    this < 1024L -> "$this bytes"
-    this <= 0xfffccccccccccccL shr 40 -> "%.1f KB".format(Locale.ROOT, toDouble() / (0x1 shl 10))
-    this <= 0xfffccccccccccccL shr 30 -> "%.1f MB".format(Locale.ROOT, toDouble() / (0x1 shl 20))
-    this <= 0xfffccccccccccccL shr 20 -> "%.1f GB".format(Locale.ROOT, toDouble() / (0x1 shl 30))
-    this <= 0xfffccccccccccccL shr 10 -> "%.1f TB".format(Locale.ROOT, toDouble() / (0x1 shl 40))
-    this <= 0xfffccccccccccccL -> "%.1f PB".format(Locale.ROOT, (this shr 10).toDouble() / (0x1 shl 40))
-    else -> "%.1f EB".format(Locale.ROOT, (this shr 20).toDouble() / (0x1 shl 40))
-}
-
-val memoryMeter: MemoryMeter by lazy { MemoryMeter.builder().build() }
-
-val MemoryMeter.strategy: String get() = this::class.java.getDeclaredField("strategy")
-    .apply { isAccessible = true }
-    .get(this)
-    .let {
-        when (val strategy = it::class.simpleName!!.removeSuffix("Strategy")) {
-            "Unsafe" -> "$strategy (approx. size)"
-            "Instrumentation" -> "$strategy (exact size)"
-            else -> strategy
-        }
-    }
+val AudioFormat.frameDuration: Duration get() = (1.0 / sampleRate.toDouble()).seconds
 
 fun <T> Flow<T>.chunked(maxChunkSize: Int): Flow<List<T>> = flow {
     require(maxChunkSize >= 1) { "Invalid max chunk size (expected >= 1, actual: $maxChunkSize)" }

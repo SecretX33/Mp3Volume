@@ -62,7 +62,13 @@ private data class FilterCoefficients(val a: List<Double>, val b: List<Double>) 
     val size = a.size
 }
 
+/**
+ * Retrieves a value from the [TreeMap] that is closest to the given [key].
+ *
+ * @throws NoSuchElementException if the map is empty.
+ */
+@Suppress("UNCHECKED_CAST")
 private fun <K : Comparable<K>, V> TreeMap<K, V>.getClosest(key: K): V {
     val closestKey = setOfNotNull(floorKey(key), ceilingKey(key)).minBy(key::compareTo)
-    return get(closestKey)!!
+    return get(closestKey) as V
 }
