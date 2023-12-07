@@ -1,7 +1,13 @@
 package com.github.secretx33.mp3volume
 
-import ch.qos.logback.core.net.ObjectWriter
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectWriter
+import com.fasterxml.jackson.databind.module.SimpleModule
+import com.fasterxml.jackson.module.kotlin.readValue
 import io.github.secretx33.resourceresolver.PathMatchingResourcePatternResolver
+import io.github.secretx33.resourceresolver.ResourceLoader.CLASSPATH_URL_PREFIX
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.coroutineScope
@@ -25,12 +31,28 @@ import kotlin.io.path.exists
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.nanoseconds
 
+val objectMapper: ObjectMapper by lazy {
+    ObjectMapper().findAndRegisterModules().applyProjectDefaults()
+}
+
+val prettyObjectMapper: ObjectWriter by lazy { objectMapper.writerWithDefaultPrettyPrinter() }
+
+fun ObjectMapper.applyProjectDefaults(): ObjectMapper = apply {
+    registerModule(SimpleModule().apply {
+        addAbstractTypeMapping(Set::class.java, LinkedHashSet::class.java)
+    })
+    setSerializationInclusion(JsonInclude.Include.NON_NULL)
+    disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+    enable(DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS)
+}
+
 private val resourceLoader by lazy { PathMatchingResourcePatternResolver() }
 
+inline fun <reified T : Any> readResource(path: String): T = objectMapper.readValue<T>(getResourceAsString(path))
+
 fun getResourceAsString(name: String): String {
-    val resource = listOf(name, "classpath:$name", "file:$name")
-        .map(resourceLoader::getResource)
-        .firstOrNull { it.exists() }
+    val resource = resourceLoader.getResource("$CLASSPATH_URL_PREFIX$name")
+        .takeIf { it.isReadable }
         ?: throw IllegalArgumentException("Resource named '$name' was not found")
     return resource.inputStream.bufferedReader().use { it.readText() }
 }

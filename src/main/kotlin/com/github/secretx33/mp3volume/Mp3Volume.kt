@@ -79,7 +79,7 @@ fun main(args: Array<String>) {
                         val start = System.nanoTime().nanoseconds
 
                         val loudnessNormalizedSamples = samples.first().indices.map { sampleIndex ->
-                            applyLoudnessNormalizeFilter(samples.mapNotNull { it.getOrNull(sampleIndex) }.toDoubleArray())
+                            applyLoudnessNormalizeFilter(samples.mapNotNull { it.getOrNull(sampleIndex) }.toDoubleArray(), decodedFormat.sampleRate.toInt())
                         }
                         val channelsMeanSquared = loudnessNormalizedSamples.map {
                             it.toList().meanSquared()
