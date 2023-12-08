@@ -11,13 +11,13 @@ import com.github.secretx33.mp3volume.mp3.meanSquared
 import com.github.secretx33.mp3volume.mp3.normalizedSamplesSequence
 import com.github.secretx33.mp3volume.mp3.readMp3WithDefaults
 import com.github.secretx33.mp3volume.mp3.rootMeanSquared
+import com.github.secretx33.mp3volume.mp3.squaredToDecibels
 import com.github.secretx33.mp3volume.mp3.toDecibels
 import org.slf4j.LoggerFactory
 import java.lang.invoke.MethodHandles
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.Path
 import kotlin.math.ceil
-import kotlin.math.floor
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
@@ -28,9 +28,9 @@ private val log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
 fun main(args: Array<String>) {
     val start = System.nanoTime().nanoseconds
 
-    try {
-        val file = Path("E:\\000f53b5640ccfa1a6a7bedd289566aa.mp3")
+    val file = Path("E:\\Saradominists - RuneScape 3 Music.mp3")
 
+    try {
         readMp3WithDefaults(file).use { audio ->
             val frameDuration = audio.frameDuration
             val chunkSize = ceil(50.milliseconds.inWholeNanoseconds.toDouble() / frameDuration.inWholeNanoseconds.toDouble()).toInt()
@@ -44,7 +44,7 @@ fun main(args: Array<String>) {
         }
 
     } catch (e: Throwable) {
-        log.error("Error executing this script (after ${(System.nanoTime().nanoseconds - start).inWholeMilliseconds}ms)!", e)
+        log.error("Error calculating the perceived volume of '$file' (after ${(System.nanoTime().nanoseconds - start).inWholeMilliseconds}ms)", e)
     }
 }
 
@@ -98,20 +98,21 @@ private fun readAudioWithMyImplementationOfReplayGain(
             }
             val meanAverage = channelsMeanSquared.average()
             meanAverage
-                .also { log.info("${index + 1}. Average: $it (${it.toDecibels()}dB) (${(System.nanoTime().nanoseconds - start).inWholeMicroseconds}mc)") }
+                .also { log.info("${index + 1}. Average: $it (${it.squaredToDecibels()}dB) (${(System.nanoTime().nanoseconds - start).inWholeMicroseconds}mc)") }
         }.toList()
     val sortedChunkSamples = chunkSamples.sorted()
+    val rmsValue = sortedChunkSamples[ceil(sortedChunkSamples.size.toDouble() * 0.95).toInt()]
 
     log.info("""
         Total Samples: ${chunkSamples.size} (in ${(System.nanoTime().nanoseconds - start).inWholeMilliseconds}ms)
 
-        Min: ${sortedChunkSamples.first()} (${sortedChunkSamples.first().toDecibels()}dB)
-        Max: ${sortedChunkSamples.last()} (${sortedChunkSamples.last().toDecibels()}dB)
+        Min: ${sortedChunkSamples.first()} (${sortedChunkSamples.first().squaredToDecibels()}dB)
+        Max: ${sortedChunkSamples.last()} (${sortedChunkSamples.last().squaredToDecibels()}dB)
 
-        Median: ${sortedChunkSamples[sortedChunkSamples.size / 2]} (${sortedChunkSamples[sortedChunkSamples.size / 2].toDecibels()}dB)
-        Mean: ${sortedChunkSamples.average()} (${sortedChunkSamples.average().toDecibels()}dB)
+        Median: ${sortedChunkSamples[sortedChunkSamples.size / 2]} (${sortedChunkSamples[sortedChunkSamples.size / 2].squaredToDecibels()}dB)
+        Mean: ${sortedChunkSamples.average()} (${sortedChunkSamples.average().squaredToDecibels()}dB)
         RMS: ${sortedChunkSamples.rootMeanSquared()} (${sortedChunkSamples.rootMeanSquared().toDecibels()}dB)
 
-        ReplayGain: ${sortedChunkSamples[floor(sortedChunkSamples.size.toDouble() * 0.95).toInt()]} (${sortedChunkSamples[floor(sortedChunkSamples.size.toDouble() * 0.95).toInt()].toDecibels()}dB)
+        ReplayGain: $rmsValue (${rmsValue.squaredToDecibels()}dB)
     """.trimIndent())
 }

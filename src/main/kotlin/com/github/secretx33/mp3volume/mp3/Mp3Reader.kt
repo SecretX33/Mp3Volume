@@ -55,18 +55,21 @@ fun AudioInputStream.normalizedSamplesSequence(): Sequence<List<Double>> = frame
     .map { it.frameToNormalizedSamples() }
 
 private fun AudioInputStream.framesSequence(): Sequence<ByteArray> = sequence {
-    var readBytes: Int
+    val bufferedStream = buffered(DEFAULT_BUFFER_SIZE)
     var buffer = ByteArray(format.frameSize)
-    val buffered = buffered(DEFAULT_BUFFER_SIZE)
+    var readBytes: Int
 
-    while (buffered.read(buffer).also { readBytes = it } > 0) {
-        if (readBytes != buffer.size) {
+    while (bufferedStream.read(buffer).also { readBytes = it } != -1) {
+        val shouldYieldBuffer = readBytes > 0
+        val shouldResizeBuffer = shouldYieldBuffer && readBytes != buffer.size
+
+        if (shouldResizeBuffer) {
             buffer = buffer.copyOf(readBytes)
         }
 
-        yield(buffer)
+        if (shouldYieldBuffer) yield(buffer)
 
-        if (format.frameSize != buffer.size) {
+        if (shouldResizeBuffer) {
             buffer = ByteArray(format.frameSize)
         }
     }
@@ -82,7 +85,8 @@ private fun ByteArray.frameToNormalizedSamples(): List<Double> {
     require(size % 2 == 0) { "Frame size must be multiple of 2, but $size is not" }
     val samples = (0..lastIndex step 2).map {
         val sample = ByteBuffer.wrap(this, it, 2).order(ByteOrder.LITTLE_ENDIAN).getShort()
-        (sample.toDouble() / 32767.0).coerceIn(-1.0, 1.0)
+        val value = (sample.toDouble() / 32767.0).coerceIn(-1.0, 1.0)
+        value
     }
     return samples
 }
@@ -91,7 +95,9 @@ fun Iterable<Double>.meanSquared(): Double = map { it.pow(2) }.average()
 
 fun Iterable<Double>.rootMeanSquared(): Double = sqrt(meanSquared())
 
-fun Double.toDecibels(): Double = 10 * log10(this + 10e-37)
+fun Double.toDecibels(): Double = 20 * log10(this + 1e-10)
+
+fun Double.squaredToDecibels(): Double = 10 * log10(this + 1e-10)
 
 @Suppress("MemberVisibilityCanBePrivate")
 class Audio(
