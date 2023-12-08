@@ -54,7 +54,7 @@ private fun readAudioWithMp3GainImplementationOfReplayGain(
 ) {
     val replayGain = ReplayGain()
     val gainAnalysis = GainAnalysis().apply {
-        InitGainAnalysis(replayGain, audio.audioFormat.sampleRate.toLong())
+        InitGainAnalysis(replayGain, audio.sampleRate.toLong())
     }
 
     audio.stream.normalizedSamplesSequence().map { it.map { it.toFloat() } }
@@ -89,8 +89,8 @@ private fun readAudioWithMyImplementationOfReplayGain(
 
             val loudnessNormalizedSamples = samples.first().indices.map { sampleIndex ->
                 applyLoudnessNormalizeFilters(
-                    samples.mapNotNull { it.getOrNull(sampleIndex) }.toDoubleArray(),
-                    audio.audioFormat.sampleRate.toInt()
+                    samples.map { it.getOrElse(sampleIndex) { _ -> it[0] } }.toDoubleArray(),
+                    audio.sampleRate,
                 )
             }
             val channelsMeanSquared = loudnessNormalizedSamples.map {
@@ -101,7 +101,8 @@ private fun readAudioWithMyImplementationOfReplayGain(
                 .also { log.info("${index + 1}. Average: $it (${it.squaredToDecibels()}dB) (${(System.nanoTime().nanoseconds - start).inWholeMicroseconds}mc)") }
         }.toList()
     val sortedChunkSamples = chunkSamples.sorted()
-    val rmsValue = sortedChunkSamples[ceil(sortedChunkSamples.size.toDouble() * 0.95).toInt()]
+    val rmsPosition = ceil(sortedChunkSamples.size.toDouble() * 0.95).toInt()
+    val rmsValue = sortedChunkSamples[rmsPosition]
 
     log.info("""
         Total Samples: ${chunkSamples.size} (in ${(System.nanoTime().nanoseconds - start).inWholeMilliseconds}ms)

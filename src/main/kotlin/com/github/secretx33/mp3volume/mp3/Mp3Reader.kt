@@ -105,6 +105,7 @@ class Audio(
     val stream: AudioInputStream,
 ) : Closeable {
     val audioFormat: AudioFormat = stream.format
+    val sampleRate: Int = audioFormat.sampleRate.toInt()
     val frameDuration: Duration = audioFormat.frameDuration
 
     override fun close() {
