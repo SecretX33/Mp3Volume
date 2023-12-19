@@ -8,9 +8,6 @@ import java.nio.file.Path
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioInputStream
 import javax.sound.sampled.AudioSystem
-import kotlin.math.log10
-import kotlin.math.pow
-import kotlin.math.sqrt
 import kotlin.time.Duration
 
 /**
@@ -90,14 +87,6 @@ private fun ByteArray.frameToNormalizedSamples(): List<Double> {
     }
     return samples
 }
-
-fun Iterable<Double>.meanSquared(): Double = map { it.pow(2) }.average()
-
-fun Iterable<Double>.rootMeanSquared(): Double = sqrt(meanSquared())
-
-fun Double.toDecibels(): Double = 20 * log10(this + 1e-10)
-
-fun Double.squaredToDecibels(): Double = 10 * log10(this + 1e-10)
 
 @Suppress("MemberVisibilityCanBePrivate")
 class Audio(

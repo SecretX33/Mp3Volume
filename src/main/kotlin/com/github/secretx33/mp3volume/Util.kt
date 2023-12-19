@@ -27,6 +27,9 @@ import javax.sound.sampled.AudioFormat
 import kotlin.io.path.createDirectories
 import kotlin.io.path.createFile
 import kotlin.io.path.exists
+import kotlin.math.log10
+import kotlin.math.pow
+import kotlin.math.sqrt
 import kotlin.reflect.typeOf
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.nanoseconds
@@ -137,6 +140,12 @@ suspend fun <T> Flow<T>.parCollect(
     }
 }
 
+fun Double.formattedDecimal(digits: Int = 1): String {
+    val pattern = "#,###${if (digits > 0) ".${"#".repeat(digits)}" else ""}"
+    val format = DecimalFormat(pattern, DecimalFormatSymbols(Locale.US))
+    return format.format(this)
+}
+
 /**
  * Returns a string representation of the duration in seconds, with increased precision when the time is below one
  * second.
@@ -168,3 +177,11 @@ fun millisElapsedUntilNow(startNanos: Long): String = (System.nanoTime() - start
  * Use [System.nanoTime] to get the starting time, then pass it to this method to get the elapsed time formatted.
  */
 fun secondsElapsedUntilNow(startNanos: Long): String = (System.nanoTime() - startNanos).nanoseconds.formattedSeconds()
+
+fun Iterable<Double>.meanSquared(): Double = map { it.pow(2) }.average()
+
+fun Iterable<Double>.rootMeanSquared(): Double = sqrt(meanSquared())
+
+fun Double.toDecibels(): Double = 20 * log10(this + 1e-10)
+
+fun Double.squaredToDecibels(): Double = 10 * log10(this + 1e-10)

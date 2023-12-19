@@ -3,20 +3,20 @@
 
 package com.github.secretx33.mp3volume
 
+import com.github.secretx33.mp3volume.model.ProcessedChunk
 import com.github.secretx33.mp3volume.mp3.Audio
 import com.github.secretx33.mp3volume.mp3.GainAnalysis
 import com.github.secretx33.mp3volume.mp3.ReplayGain
 import com.github.secretx33.mp3volume.mp3.applyLoudnessNormalizeFilters
-import com.github.secretx33.mp3volume.mp3.meanSquared
 import com.github.secretx33.mp3volume.mp3.normalizedSamplesSequence
 import com.github.secretx33.mp3volume.mp3.readMp3WithDefaults
-import com.github.secretx33.mp3volume.mp3.rootMeanSquared
-import com.github.secretx33.mp3volume.mp3.squaredToDecibels
-import com.github.secretx33.mp3volume.mp3.toDecibels
 import org.slf4j.LoggerFactory
 import java.lang.invoke.MethodHandles
+import java.nio.file.Path
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.Path
+import kotlin.io.path.listDirectoryEntries
+import kotlin.io.path.name
 import kotlin.math.ceil
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -26,21 +26,23 @@ import kotlin.time.ExperimentalTime
 private val log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
 
 fun main(args: Array<String>) {
-    val start = System.nanoTime().nanoseconds
+    val folder = Path("E:\\testAudios")
+    folder.listDirectoryEntries("*.mp3").sortedBy { it.name }.forEach { file ->
+        val start = System.nanoTime().nanoseconds
+        processFile(file, start)
+    }
+}
 
-    val file = Path("E:\\Saradominists - RuneScape 3 Music.mp3")
-
+private fun processFile(file: Path, start: Duration) {
     try {
         readMp3WithDefaults(file).use { audio ->
             val frameDuration = audio.frameDuration
             val chunkSize = ceil(50.milliseconds.inWholeNanoseconds.toDouble() / frameDuration.inWholeNanoseconds.toDouble()).toInt()
 
-            log.info("Chunk Size: $chunkSize (${(chunkSize * frameDuration.inWholeNanoseconds).nanoseconds.inWholeMilliseconds}ms)")
+//            log.info("Chunk Size: $chunkSize (${(chunkSize * frameDuration.inWholeNanoseconds).nanoseconds.inWholeMilliseconds}ms)")
 
 //            readAudioWithMp3GainImplementationOfReplayGain(audio, chunkSize)
-            readAudioWithMyImplementationOfReplayGain(audio, chunkSize, start)
-
-            println()
+            readAudioWithMyImplementationOfReplayGain(audio, chunkSize, start, file.name)
         }
 
     } catch (e: Throwable) {
@@ -81,39 +83,56 @@ private fun readAudioWithMyImplementationOfReplayGain(
     audio: Audio,
     chunkSize: Int,
     start: Duration,
+    fileName: String,
 ) {
+    var previousChunk = emptyList<ProcessedChunk>()
     val chunkSamples = audio.stream.normalizedSamplesSequence()
         .chunked(chunkSize)
         .mapIndexed { index, samples ->
             val start = System.nanoTime().nanoseconds
 
             val loudnessNormalizedSamples = samples.first().indices.map { sampleIndex ->
+                val sample = samples.map { it.getOrElse(sampleIndex) { _ -> it[0] } }.toDoubleArray()
                 applyLoudnessNormalizeFilters(
-                    samples.map { it.getOrElse(sampleIndex) { _ -> it[0] } }.toDoubleArray(),
-                    audio.sampleRate,
+                    samples = sample,
+                    sampleRate = audio.sampleRate,
+                    previousChunk = previousChunk.getOrNull(sampleIndex),
                 )
-            }
+            }.also { previousChunk = it }
             val channelsMeanSquared = loudnessNormalizedSamples.map {
-                it.toList().meanSquared()
+                it.processedChunk.toList().meanSquared()
             }
             val meanAverage = channelsMeanSquared.average()
             meanAverage
-                .also { log.info("${index + 1}. Average: $it (${it.squaredToDecibels()}dB) (${(System.nanoTime().nanoseconds - start).inWholeMicroseconds}mc)") }
+//                .also { log.info("${index + 1}. Average: $it (${it.squaredToDecibels()}dB) (${(System.nanoTime().nanoseconds - start).inWholeMicroseconds}mc)") }
         }.toList()
     val sortedChunkSamples = chunkSamples.sorted()
     val rmsPosition = ceil(sortedChunkSamples.size.toDouble() * 0.95).toInt()
     val rmsValue = sortedChunkSamples[rmsPosition]
 
-    log.info("""
-        Total Samples: ${chunkSamples.size} (in ${(System.nanoTime().nanoseconds - start).inWholeMilliseconds}ms)
-
-        Min: ${sortedChunkSamples.first()} (${sortedChunkSamples.first().squaredToDecibels()}dB)
-        Max: ${sortedChunkSamples.last()} (${sortedChunkSamples.last().squaredToDecibels()}dB)
-
-        Median: ${sortedChunkSamples[sortedChunkSamples.size / 2]} (${sortedChunkSamples[sortedChunkSamples.size / 2].squaredToDecibels()}dB)
-        Mean: ${sortedChunkSamples.average()} (${sortedChunkSamples.average().squaredToDecibels()}dB)
-        RMS: ${sortedChunkSamples.rootMeanSquared()} (${sortedChunkSamples.rootMeanSquared().toDecibels()}dB)
-
-        ReplayGain: $rmsValue (${rmsValue.squaredToDecibels()}dB)
-    """.trimIndent())
+//    printDetailedSummary(start, sortedChunkSamples, rmsValue)
+    printSimpleSummary(rmsValue, start, fileName)
 }
+
+private fun printDetailedSummary(
+    start: Duration,
+    sortedChunkSamples: List<Double>,
+    rmsValue: Double
+) = log.info("""
+    Total Samples: ${sortedChunkSamples.size} (in ${(System.nanoTime().nanoseconds - start).inWholeMilliseconds}ms)
+
+    Min: ${sortedChunkSamples.first()} (${sortedChunkSamples.first().squaredToDecibels()}dB)
+    Max: ${sortedChunkSamples.last()} (${sortedChunkSamples.last().squaredToDecibels()}dB)
+
+    Median: ${sortedChunkSamples[sortedChunkSamples.size / 2]} (${sortedChunkSamples[sortedChunkSamples.size / 2].squaredToDecibels()}dB)
+    Mean: ${sortedChunkSamples.average()} (${sortedChunkSamples.average().squaredToDecibels()}dB)
+    RMS: ${sortedChunkSamples.rootMeanSquared()} (${sortedChunkSamples.rootMeanSquared().toDecibels()}dB)
+
+    ReplayGain: $rmsValue (${rmsValue.squaredToDecibels().formattedDecimal()}dB)
+""".trimIndent())
+
+private fun printSimpleSummary(
+    rmsValue: Double,
+    start: Duration,
+    fileName: String,
+) = log.info("$fileName -> Volume: $rmsValue (${rmsValue.squaredToDecibels().formattedDecimal()}dB) in ${(System.nanoTime().nanoseconds - start).inWholeMilliseconds}ms")

@@ -2,9 +2,11 @@
 
 package com.github.secretx33.mp3volume.mp3
 
+import com.github.secretx33.mp3volume.model.ProcessedChunk
 import com.github.secretx33.mp3volume.readResource
 import jdk.jfr.Name
 import java.util.TreeMap
+import kotlin.math.max
 import kotlin.math.min
 
 private val yulewalkCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("coefficients/yulewalk.json")
@@ -15,15 +17,26 @@ private val butterworthCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("
  * Transforms the audio [samples] by approximating their values to those perceived by the
  * human ear using Yulewalk and Butterworth IIR filters.
  */
-fun applyLoudnessNormalizeFilters(samples: DoubleArray, sampleRate: Int): DoubleArray {
+fun applyLoudnessNormalizeFilters(
+    samples: DoubleArray,
+    sampleRate: Int,
+    previousChunk: ProcessedChunk? = null,
+): ProcessedChunk {
     val yulewalkCoeffs = yulewalkCoeffs.getClosest(sampleRate)
     val butterworthCoeffs = butterworthCoeffs.getClosest(sampleRate)
+    val lookbehindAmount = max(yulewalkCoeffs.size, butterworthCoeffs.size)
+
+    val preparedSamples = (previousChunk?.chunk?.takeLast(lookbehindAmount)?.toDoubleArray() ?: doubleArrayOf()) + samples
 
     // Apply Yulewalk and Butterworth filters
-    val filteredYulewalk = applyIIRFilter(samples, yulewalkCoeffs)
+    val filteredYulewalk = applyIIRFilter(preparedSamples, yulewalkCoeffs)
     val filteredButterworth = applyIIRFilter(filteredYulewalk, butterworthCoeffs)
 
-    return filteredButterworth
+    val processedSamples = when {
+        filteredButterworth.size > samples.size -> filteredButterworth.drop(filteredButterworth.size - samples.size).toDoubleArray()
+        else -> filteredButterworth
+    }
+    return ProcessedChunk(samples, processedSamples)
 }
 
 /**
