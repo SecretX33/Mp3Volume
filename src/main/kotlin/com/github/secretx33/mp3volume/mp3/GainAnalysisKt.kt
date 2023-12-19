@@ -2,7 +2,8 @@
 
 package com.github.secretx33.mp3volume.mp3
 
-import com.github.secretx33.mp3volume.model.ProcessedChunk
+import com.github.secretx33.mp3volume.model.ProcessedSample
+import com.github.secretx33.mp3volume.model.Sample
 import com.github.secretx33.mp3volume.readResource
 import jdk.jfr.Name
 import java.util.TreeMap
@@ -14,35 +15,35 @@ private val yulewalkCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("coe
 private val butterworthCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("coefficients/butterworth.json")
 
 /**
- * Transforms the audio [samples] by approximating their values to those perceived by the
+ * Transforms the audio [sample] by approximating their values to those perceived by the
  * human ear using Yulewalk and Butterworth IIR filters.
  */
 fun applyLoudnessNormalizeFilters(
-    samples: DoubleArray,
+    sample: Sample,
     sampleRate: Int,
-    previousChunk: ProcessedChunk? = null,
-): ProcessedChunk {
+    previousChunk: ProcessedSample? = null,
+): ProcessedSample {
     val yulewalkCoeffs = yulewalkCoeffs.getClosest(sampleRate)
     val butterworthCoeffs = butterworthCoeffs.getClosest(sampleRate)
     val lookbehindAmount = max(yulewalkCoeffs.size, butterworthCoeffs.size)
 
-    val preparedSamples = (previousChunk?.chunk?.takeLast(lookbehindAmount)?.toDoubleArray() ?: doubleArrayOf()) + samples
+    val preparedSample = (previousChunk?.sample?.takeLast(lookbehindAmount)?.toDoubleArray() ?: doubleArrayOf()) + sample
 
     // Apply Yulewalk and Butterworth filters
-    val filteredYulewalk = applyIIRFilter(preparedSamples, yulewalkCoeffs)
+    val filteredYulewalk = applyIIRFilter(preparedSample, yulewalkCoeffs)
     val filteredButterworth = applyIIRFilter(filteredYulewalk, butterworthCoeffs)
 
-    val processedSamples = when {
-        filteredButterworth.size > samples.size -> filteredButterworth.drop(filteredButterworth.size - samples.size).toDoubleArray()
+    val processedSample = when {
+        filteredButterworth.size > sample.size -> filteredButterworth.drop(filteredButterworth.size - sample.size).toDoubleArray()
         else -> filteredButterworth
     }
-    return ProcessedChunk(samples, processedSamples)
+    return ProcessedSample(sample, processedSample)
 }
 
 /**
  * Apply an IIR (Infinite Impulse Response) filter, returning a copy of the `input` array.
  */
-private fun applyIIRFilter(input: DoubleArray, coeffs: FilterCoefficients): DoubleArray {
+private fun applyIIRFilter(input: Sample, coeffs: FilterCoefficients): DoubleArray {
     val output = DoubleArray(input.size)
     val bufferSize = coeffs.size
     val a = coeffs.a
