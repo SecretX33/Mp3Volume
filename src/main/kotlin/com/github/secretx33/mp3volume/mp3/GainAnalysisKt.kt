@@ -3,6 +3,7 @@
 package com.github.secretx33.mp3volume.mp3
 
 import com.github.secretx33.mp3volume.meanSquared
+import com.github.secretx33.mp3volume.microsElapsedUntilNow
 import com.github.secretx33.mp3volume.model.ProcessedSample
 import com.github.secretx33.mp3volume.model.ProcessingResult
 import com.github.secretx33.mp3volume.model.SampleArray
@@ -10,6 +11,7 @@ import com.github.secretx33.mp3volume.model.SamplesArray
 import com.github.secretx33.mp3volume.model.SamplesList
 import com.github.secretx33.mp3volume.model.toSampleArray
 import com.github.secretx33.mp3volume.readResource
+import com.github.secretx33.mp3volume.squaredToDecibels
 import jdk.jfr.Name
 import org.slf4j.LoggerFactory
 import java.lang.invoke.MethodHandles
@@ -18,18 +20,17 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
-import kotlin.time.Duration.Companion.nanoseconds
 
 private val log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
+
+private val yulewalkCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("coefficients/yulewalk.json")
+
+private val butterworthCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("coefficients/butterworth.json")
 
 /**
  * Source: Replay Gain' [Statistical Processing](https://replaygain.hydrogenaud.io/statistical_process.html).
  */
 private const val RMS_PERCENTILE = 0.95
-
-private val yulewalkCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("coefficients/yulewalk.json")
-
-private val butterworthCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("coefficients/butterworth.json")
 
 /**
  * Given an [audio] stream, calculate the perceived volume of the audio using the `Replay Gain` algorithm.
@@ -40,15 +41,16 @@ private val butterworthCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("
  * The caller is responsible for closing the [Audio].
  */
 fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
-    if (log.isTraceEnabled) {
-        log.trace("Chunk Size: ${audio.chunkSize} (${(audio.chunkSize * audio.frameDuration.inWholeNanoseconds).nanoseconds.inWholeMilliseconds}ms)")
+    val isTraceEnabled = log.isTraceEnabled
+    if (isTraceEnabled) {
+        log.trace("Chunk Size: ${audio.chunkSize} (${audio.chunkDuration.inWholeMilliseconds}ms)")
     }
 
     var previousChunk = emptyList<ProcessedSample>()
     val chunkSamples = audio.decodedStream.asAmplitudeValues()
         .chunked(audio.chunkSize)
         .mapIndexed { index, samples ->
-            val start = System.nanoTime().nanoseconds
+            val start = System.nanoTime()
 
             val loudnessNormalizedSamples = samples.first().indices.map { sampleIndex ->
                 val sample = samples.map { it.getOrElse(sampleIndex) { _ -> it[0] } }
@@ -62,19 +64,21 @@ fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
                 it.processedSample.toList().meanSquared()
             }
             val squaredMeanAverage = channelsMeanSquared.average()
-            squaredMeanAverage
-//                .also { log.info("${index + 1}. Average: $it (${it.squaredToDecibels()}dB) (${(System.nanoTime().nanoseconds - start).inWholeMicroseconds}mc)") }
-        }.toList()
 
-    val sortedChunkSamples = chunkSamples.sorted()
-    val rmsPosition = ceil(sortedChunkSamples.size.toDouble() * RMS_PERCENTILE).toInt()
-    val rmsValue = sqrt(sortedChunkSamples[rmsPosition])
+            if (isTraceEnabled) {
+                log.trace("${index + 1}. Average: $squaredMeanAverage (${squaredMeanAverage.squaredToDecibels()}dB) (${microsElapsedUntilNow(start)}µ)")
+            }
+            squaredMeanAverage
+        }.toList().sorted()
+
+    val rmsPosition = ceil(chunkSamples.size.toDouble() * RMS_PERCENTILE).toInt()
+    val rmsValue = sqrt(chunkSamples[rmsPosition])
 
     return ProcessingResult(
         analysedAudio = audio,
         rmsAverageLoudness = rmsValue,
         rmsAverageLoudnessChunkIndex = rmsPosition,
-        samples = sortedChunkSamples,
+        samples = chunkSamples,
     )
 }
 

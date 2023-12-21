@@ -166,20 +166,31 @@ fun Duration.formattedSeconds(): String {
 }
 
 /**
+ * Convenience method to get a nice representation of time elapsed in micros (µ) just from the starting
+ * time.
+ *
+ * Use [System.nanoTime] to get the starting time, then pass it to this method to get the elapsed
+ * time formatted.
+ */
+fun microsElapsedUntilNow(startNanos: Long): String = timeElapsedUntilNow(startNanos).inWholeMicroseconds.toString()
+
+/**
  * Convenience method to get a nice representation of time elapsed in millis just from the starting
  * time.
  *
  * Use [System.nanoTime] to get the starting time, then pass it to this method to get the elapsed
  * time formatted.
  */
-fun millisElapsedUntilNow(startNanos: Long): String = (System.nanoTime() - startNanos).nanoseconds.inWholeMilliseconds.toString()
+fun millisElapsedUntilNow(startNanos: Long): String = timeElapsedUntilNow(startNanos).inWholeMilliseconds.toString()
 
 /**
  * Convenience method to get a nice representation of time elapsed in seconds just from the starting time.
  *
  * Use [System.nanoTime] to get the starting time, then pass it to this method to get the elapsed time formatted.
  */
-fun secondsElapsedUntilNow(startNanos: Long): String = (System.nanoTime() - startNanos).nanoseconds.formattedSeconds()
+fun secondsElapsedUntilNow(startNanos: Long): String = timeElapsedUntilNow(startNanos).formattedSeconds()
+
+fun timeElapsedUntilNow(startNanos: Long): Duration = (System.nanoTime() - startNanos).nanoseconds
 
 fun Iterable<Float>.meanSquared(): Double = map { it.pow(2) }.average()
 

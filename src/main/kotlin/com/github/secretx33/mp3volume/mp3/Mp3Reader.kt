@@ -13,6 +13,7 @@ import javax.sound.sampled.AudioSystem
 import kotlin.math.ceil
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.nanoseconds
 
 /**
  * Read an MP3 file and return an [Audio] object that wraps both source and decoded `AudioInputStream`s .
@@ -94,6 +95,7 @@ class Audio(
     val sampleRate: Int = audioFormat.sampleRate.toInt()
     val frameDuration: Duration = audioFormat.frameDuration
     val chunkSize: Int = ceil(SAMPLE_CHUNK_LENGTH.inWholeNanoseconds.toDouble() / frameDuration.inWholeNanoseconds.toDouble()).toInt()
+    val chunkDuration: Duration = (chunkSize * frameDuration.inWholeNanoseconds).nanoseconds
 
     override fun close() {
         val failures = listOf(sourceStream, decodedStream)
