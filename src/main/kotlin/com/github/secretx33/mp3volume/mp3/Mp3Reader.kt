@@ -2,6 +2,7 @@ package com.github.secretx33.mp3volume.mp3
 
 import com.github.secretx33.mp3volume.asSequence
 import com.github.secretx33.mp3volume.frameDuration
+import com.github.secretx33.mp3volume.model.Samples
 import java.io.Closeable
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -50,7 +51,7 @@ fun readMp3WithDefaults(file: Path): Audio {
  *
  * The caller is responsible for closing the [AudioInputStream] after the sequence is consumed.
  */
-fun AudioInputStream.asAmplitudeValues(): Sequence<List<Double>> = framesSequence()
+fun AudioInputStream.asAmplitudeValues(): Sequence<Samples> = framesSequence()
     .map { it.frameToAmplitudeValues() }
 
 /**
@@ -66,11 +67,11 @@ private fun AudioInputStream.framesSequence(): Sequence<ByteArray> = buffered()
  * Each item of the list represents a frame of an audio channel that was converted into an
  * amplitude ranging from `-1.0` to `1.0`.
  */
-private fun ByteArray.frameToAmplitudeValues(): List<Double> {
+private fun ByteArray.frameToAmplitudeValues(): Samples {
     require(size % 2 == 0) { "Frame size must be multiple of 2, but $size is not" }
     val samples = (0..lastIndex step 2).map {
         val sample = ByteBuffer.wrap(this, it, 2).order(ByteOrder.LITTLE_ENDIAN).getShort()
-        val value = (sample.toDouble() / 32767.0).coerceIn(-1.0, 1.0)
+        val value = (sample.toFloat() / 32767f).coerceIn(-1f, 1f)
         value
     }
     return samples

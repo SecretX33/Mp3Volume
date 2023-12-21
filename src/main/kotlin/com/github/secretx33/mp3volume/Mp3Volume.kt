@@ -54,7 +54,7 @@ private fun readAudioWithMp3GainImplementationOfReplayGain(
         InitGainAnalysis(replayGain, audio.sampleRate.toLong())
     }
 
-    audio.decodedStream.asAmplitudeValues().map { it.map { it.toFloat() } }
+    audio.decodedStream.asAmplitudeValues()
         .chunked(chunkSize)
         .forEach {
             val start = System.nanoTime()
@@ -71,7 +71,7 @@ private fun readAudioWithMp3GainImplementationOfReplayGain(
         }
 
     val titleGain = gainAnalysis.GetTitleGain(replayGain)
-    log.info("Replay Gain: $titleGain (${titleGain.toDouble().toDecibels()}dB)")
+    log.info("Replay Gain: $titleGain (${titleGain.toDecibels()}dB)")
 }
 
 private fun readAudioWithMyImplementationOfReplayGain(

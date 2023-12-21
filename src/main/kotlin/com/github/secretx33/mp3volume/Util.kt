@@ -141,6 +141,8 @@ suspend fun <T> Flow<T>.parCollect(
     }
 }
 
+fun Float.formattedDecimal(digits: Int = 1): String = toDouble().formattedDecimal(digits)
+
 fun Double.formattedDecimal(digits: Int = 1): String {
     val pattern = "#,###${if (digits > 0) ".${"#".repeat(digits)}" else ""}"
     val format = DecimalFormat(pattern, DecimalFormatSymbols(Locale.US))
@@ -179,13 +181,25 @@ fun millisElapsedUntilNow(startNanos: Long): String = (System.nanoTime() - start
  */
 fun secondsElapsedUntilNow(startNanos: Long): String = (System.nanoTime() - startNanos).nanoseconds.formattedSeconds()
 
+fun Iterable<Float>.meanSquared(): Double = map { it.pow(2) }.average()
+
+@JvmName("meanSquaredDouble")
 fun Iterable<Double>.meanSquared(): Double = map { it.pow(2) }.average()
 
+fun Iterable<Float>.rootMeanSquared(): Double = sqrt(meanSquared())
+
+@JvmName("rootMeanSquaredDouble")
 fun Iterable<Double>.rootMeanSquared(): Double = sqrt(meanSquared())
 
-fun Double.toDecibels(): Double = 20 * log10(this + 1e-10)
+private const val EPSILON = 1e-10
 
-fun Double.squaredToDecibels(): Double = 10 * log10(this + 1e-10)
+fun Float.toDecibels(): Float = toDouble().toDecibels().toFloat()
+
+fun Double.toDecibels(): Double = 20 * log10(this + EPSILON)
+
+fun Float.squaredToDecibels(): Float = toDouble().toDecibels().toFloat()
+
+fun Double.squaredToDecibels(): Double = 10 * log10(this + EPSILON)
 
 /**
  * Read the [InputStream] as a sequence of [ByteArray]s, where each `ByteArray` has a size of [chunkSize],
