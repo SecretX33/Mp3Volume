@@ -5,10 +5,9 @@ package com.github.secretx33.mp3volume.mp3
 import com.github.secretx33.mp3volume.meanSquared
 import com.github.secretx33.mp3volume.model.ProcessedSample
 import com.github.secretx33.mp3volume.model.ProcessingResult
-import com.github.secretx33.mp3volume.model.Sample
 import com.github.secretx33.mp3volume.model.SampleArray
-import com.github.secretx33.mp3volume.model.SampleUnit
-import com.github.secretx33.mp3volume.model.sampleArrayOf
+import com.github.secretx33.mp3volume.model.SamplesArray
+import com.github.secretx33.mp3volume.model.SamplesList
 import com.github.secretx33.mp3volume.model.toSampleArray
 import com.github.secretx33.mp3volume.readResource
 import jdk.jfr.Name
@@ -52,7 +51,7 @@ fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
             val start = System.nanoTime().nanoseconds
 
             val loudnessNormalizedSamples = samples.first().indices.map { sampleIndex ->
-                val sample = samples.map { it.getOrElse(sampleIndex) { _ -> it[0] } }.toSampleArray()
+                val sample = samples.map { it.getOrElse(sampleIndex) { _ -> it[0] } }
                 applyLoudnessNormalizeFilters(
                     sample = sample,
                     sampleRate = audio.sampleRate,
@@ -86,7 +85,7 @@ fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
  * See: Replay Gain' [Equal Loudness](https://replaygain.hydrogenaud.io/equal_loudness.html).
  */
 private fun applyLoudnessNormalizeFilters(
-    sample: Sample,
+    sample: SamplesList,
     sampleRate: Int,
     previousSample: ProcessedSample? = null,
 ): ProcessedSample {
@@ -94,15 +93,15 @@ private fun applyLoudnessNormalizeFilters(
     val butterworthCoeffs = butterworthCoeffs.getClosest(sampleRate)
     val lookbehindAmount = max(yulewalkCoeffs.size, butterworthCoeffs.size)
 
-    val preparedSample = (previousSample?.sample?.takeLast(lookbehindAmount)?.toSampleArray() ?: sampleArrayOf()) + sample
+    val preparedSample = previousSample?.sample?.takeLast(lookbehindAmount).orEmpty().toSampleArray() + sample
 
     // Apply Yulewalk and Butterworth filters
     val filteredYulewalk = applyIIRFilter(preparedSample, yulewalkCoeffs)
     val filteredButterworth = applyIIRFilter(filteredYulewalk, butterworthCoeffs)
 
     val processedSample = when {
-        filteredButterworth.size > sample.size -> filteredButterworth.drop(filteredButterworth.size - sample.size).toSampleArray()
-        else -> filteredButterworth
+        filteredButterworth.size > sample.size -> filteredButterworth.drop(filteredButterworth.size - sample.size)
+        else -> filteredButterworth.toList()
     }
     return ProcessedSample(sample, processedSample)
 }
@@ -110,7 +109,7 @@ private fun applyLoudnessNormalizeFilters(
 /**
  * Apply an IIR (Infinite Impulse Response) filter, returning a copy of the `input` array.
  */
-private fun applyIIRFilter(input: Sample, coeffs: FilterCoefficients): Sample {
+private fun applyIIRFilter(input: SamplesArray, coeffs: FilterCoefficients): SamplesArray {
     val output = SampleArray(input.size)
     val bufferSize = coeffs.size
     val a = coeffs.a
@@ -136,7 +135,15 @@ private fun applyIIRFilter(input: Sample, coeffs: FilterCoefficients): Sample {
     return output
 }
 
-private data class FilterCoefficients(val a: List<SampleUnit>, val b: List<SampleUnit>) {
+/**
+ * Wrapper class for filter coefficient values.
+ *
+ * Note that the [a] and [b] arrays are supposed to be immutable, but using `Array` instead of `List` gives a `7%`
+ * bump in performance, hence why we are using `Array` instead of an immutable `List`.
+ *
+ * So, **do not mutate the arrays**.
+ */
+private class FilterCoefficients(val a: SamplesArray, val b: SamplesArray) {
     init {
         require(a.size == b.size) { "Filter coefficients must have the same size, a = ${a.size}, b = ${b.size}" }
     }
