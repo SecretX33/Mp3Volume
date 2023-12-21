@@ -1,5 +1,6 @@
 package com.github.secretx33.mp3volume.mp3
 
+import com.github.secretx33.mp3volume.asSequence
 import com.github.secretx33.mp3volume.frameDuration
 import java.io.Closeable
 import java.nio.ByteBuffer
@@ -52,26 +53,9 @@ fun readMp3WithDefaults(file: Path): Audio {
 fun AudioInputStream.normalizedSamplesSequence(): Sequence<List<Double>> = framesSequence()
     .map { it.frameToNormalizedSamples() }
 
-private fun AudioInputStream.framesSequence(): Sequence<ByteArray> = sequence {
-    val bufferedStream = buffered(DEFAULT_BUFFER_SIZE)
-    var buffer = ByteArray(format.frameSize)
-    var readBytes: Int
-
-    while (bufferedStream.read(buffer).also { readBytes = it } != -1) {
-        val shouldYieldBuffer = readBytes > 0
-        val shouldResizeBuffer = shouldYieldBuffer && readBytes != buffer.size
-
-        if (shouldResizeBuffer) {
-            buffer = buffer.copyOf(readBytes)
-        }
-
-        if (shouldYieldBuffer) yield(buffer)
-
-        if (shouldResizeBuffer) {
-            buffer = ByteArray(format.frameSize)
-        }
-    }
-}
+private fun AudioInputStream.framesSequence(): Sequence<ByteArray> = buffered()
+    .asSequence(chunkSize = format.frameSize)
+    .filter { it.size == format.frameSize }
 
 /**
  * Maps an audio frame into a normalized sample.

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import java.io.InputStream
 import java.nio.file.Path
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
@@ -185,3 +186,24 @@ fun Iterable<Double>.rootMeanSquared(): Double = sqrt(meanSquared())
 fun Double.toDecibels(): Double = 20 * log10(this + 1e-10)
 
 fun Double.squaredToDecibels(): Double = 10 * log10(this + 1e-10)
+
+/**
+ * Read the [InputStream] as a sequence of [ByteArray]s, where each `ByteArray` has a size of [chunkSize],
+ * except for the last one, which may be smaller.
+ *
+ * For performance reasons, this method **will reuse** the same `ByteArray` instance between reads, so the caller
+ * must make a copy of the returned `ByteArray` if it needs to keep it.
+ */
+fun InputStream.asSequence(chunkSize: Int = DEFAULT_BUFFER_SIZE): Sequence<ByteArray> {
+    var readBytes: Int
+    val buffer = ByteArray(chunkSize)
+
+    return generateSequence {
+        readBytes = read(buffer)
+        when {
+            readBytes < 0 -> null
+            readBytes < buffer.size -> buffer.copyOf(readBytes)
+            else -> buffer
+        }
+    }
+}
