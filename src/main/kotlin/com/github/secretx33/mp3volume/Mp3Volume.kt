@@ -8,8 +8,8 @@ import com.github.secretx33.mp3volume.model.SampleUnit
 import com.github.secretx33.mp3volume.mp3.Audio
 import com.github.secretx33.mp3volume.mp3.GainAnalysis
 import com.github.secretx33.mp3volume.mp3.ReplayGain
+import com.github.secretx33.mp3volume.mp3.asAmplitudeValues
 import com.github.secretx33.mp3volume.mp3.calculatePerceivedVolume
-import com.github.secretx33.mp3volume.mp3.normalizedSamplesSequence
 import com.github.secretx33.mp3volume.mp3.readMp3WithDefaults
 import org.slf4j.LoggerFactory
 import java.lang.invoke.MethodHandles
@@ -54,7 +54,7 @@ private fun readAudioWithMp3GainImplementationOfReplayGain(
         InitGainAnalysis(replayGain, audio.sampleRate.toLong())
     }
 
-    audio.decodedStream.normalizedSamplesSequence().map { it.map { it.toFloat() } }
+    audio.decodedStream.asAmplitudeValues().map { it.map { it.toFloat() } }
         .chunked(chunkSize)
         .forEach {
             val start = System.nanoTime()

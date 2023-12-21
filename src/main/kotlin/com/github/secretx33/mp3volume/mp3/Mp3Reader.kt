@@ -46,24 +46,27 @@ fun readMp3WithDefaults(file: Path): Audio {
 
 /**
  * Return a sequence that abstracts the reading and parsing of the audio stream into frames, and the
- * mapping of those frames into normalized samples.
+ * mapping of these frames into absolute amplitude values (ranging from `-1.0` to `1.0`).
  *
  * The caller is responsible for closing the [AudioInputStream] after the sequence is consumed.
  */
-fun AudioInputStream.normalizedSamplesSequence(): Sequence<List<Double>> = framesSequence()
-    .map { it.frameToNormalizedSamples() }
+fun AudioInputStream.asAmplitudeValues(): Sequence<List<Double>> = framesSequence()
+    .map { it.frameToAmplitudeValues() }
 
+/**
+ * The caller is responsible for closing the [AudioInputStream] after the sequence is consumed.
+ */
 private fun AudioInputStream.framesSequence(): Sequence<ByteArray> = buffered()
     .asSequence(chunkSize = format.frameSize)
     .filter { it.size == format.frameSize }
 
 /**
- * Maps an audio frame into a normalized sample.
+ * Maps an audio frame into its amplitude value.
  *
- * Each item of the list represents a frame of an audio channel that was normalized into `-1.0 ~ 1.0`
- * amplitude.
+ * Each item of the list represents a frame of an audio channel that was converted into an
+ * amplitude ranging from `-1.0` to `1.0`.
  */
-private fun ByteArray.frameToNormalizedSamples(): List<Double> {
+private fun ByteArray.frameToAmplitudeValues(): List<Double> {
     require(size % 2 == 0) { "Frame size must be multiple of 2, but $size is not" }
     val samples = (0..lastIndex step 2).map {
         val sample = ByteBuffer.wrap(this, it, 2).order(ByteOrder.LITTLE_ENDIAN).getShort()

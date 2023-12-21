@@ -50,7 +50,7 @@ fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
     }
 
     var previousChunk = emptyList<ProcessedSample>()
-    val chunkSamples = audio.decodedStream.normalizedSamplesSequence()
+    val chunkSamples = audio.decodedStream.asAmplitudeValues()
         .chunked(chunkSize)
         .mapIndexed { index, samples ->
             val start = System.nanoTime().nanoseconds
@@ -60,7 +60,7 @@ fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
                 applyLoudnessNormalizeFilters(
                     sample = sample,
                     sampleRate = audio.sampleRate,
-                    previousChunk = previousChunk.getOrNull(sampleIndex),
+                    previousSample = previousChunk.getOrNull(sampleIndex),
                 )
             }.also { previousChunk = it }
             val channelsMeanSquared = loudnessNormalizedSamples.map {
@@ -87,17 +87,19 @@ fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
 /**
  * Transforms the audio [sample] by approximating their values to those perceived by the
  * human ear using Yulewalk and Butterworth IIR filters.
+ *
+ * See: Replay Gain' [Equal Loudness](https://replaygain.hydrogenaud.io/equal_loudness.html).
  */
 private fun applyLoudnessNormalizeFilters(
     sample: Sample,
     sampleRate: Int,
-    previousChunk: ProcessedSample? = null,
+    previousSample: ProcessedSample? = null,
 ): ProcessedSample {
     val yulewalkCoeffs = yulewalkCoeffs.getClosest(sampleRate)
     val butterworthCoeffs = butterworthCoeffs.getClosest(sampleRate)
     val lookbehindAmount = max(yulewalkCoeffs.size, butterworthCoeffs.size)
 
-    val preparedSample = (previousChunk?.sample?.takeLast(lookbehindAmount)?.toDoubleArray() ?: doubleArrayOf()) + sample
+    val preparedSample = (previousSample?.sample?.takeLast(lookbehindAmount)?.toDoubleArray() ?: doubleArrayOf()) + sample
 
     // Apply Yulewalk and Butterworth filters
     val filteredYulewalk = applyIIRFilter(preparedSample, yulewalkCoeffs)
