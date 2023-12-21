@@ -19,15 +19,9 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
 
 private val log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
-
-/**
- * Source: Replay Gain' [RMS Energy](https://replaygain.hydrogenaud.io/rms_energy.html).
- */
-private val SAMPLE_CHUNK_LENGTH = 50.milliseconds
 
 /**
  * Source: Replay Gain' [Statistical Processing](https://replaygain.hydrogenaud.io/statistical_process.html).
@@ -47,15 +41,13 @@ private val butterworthCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("
  * The caller is responsible for closing the [Audio].
  */
 fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
-    val chunkSize = ceil(SAMPLE_CHUNK_LENGTH.inWholeNanoseconds.toDouble() / audio.frameDuration.inWholeNanoseconds.toDouble()).toInt()
-
     if (log.isTraceEnabled) {
-        log.trace("Chunk Size: $chunkSize (${(chunkSize * audio.frameDuration.inWholeNanoseconds).nanoseconds.inWholeMilliseconds}ms)")
+        log.trace("Chunk Size: ${audio.chunkSize} (${(audio.chunkSize * audio.frameDuration.inWholeNanoseconds).nanoseconds.inWholeMilliseconds}ms)")
     }
 
     var previousChunk = emptyList<ProcessedSample>()
     val chunkSamples = audio.decodedStream.asAmplitudeValues()
-        .chunked(chunkSize)
+        .chunked(audio.chunkSize)
         .mapIndexed { index, samples ->
             val start = System.nanoTime().nanoseconds
 
@@ -84,7 +76,6 @@ fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
         rmsAverageLoudness = rmsValue,
         rmsAverageLoudnessChunkIndex = rmsPosition,
         samples = sortedChunkSamples,
-        chunkSize = chunkSize,
     )
 }
 

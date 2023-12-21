@@ -10,7 +10,9 @@ import java.nio.file.Path
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioInputStream
 import javax.sound.sampled.AudioSystem
+import kotlin.math.ceil
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Read an MP3 file and return an [Audio] object that wraps both source and decoded `AudioInputStream`s .
@@ -77,6 +79,11 @@ private fun ByteArray.frameToAmplitudeValues(): Samples {
     return samples
 }
 
+/**
+ * Source: Replay Gain' [RMS Energy](https://replaygain.hydrogenaud.io/rms_energy.html).
+ */
+private val SAMPLE_CHUNK_LENGTH = 50.milliseconds
+
 @Suppress("MemberVisibilityCanBePrivate")
 class Audio(
     val file: Path,
@@ -86,6 +93,7 @@ class Audio(
     val audioFormat: AudioFormat = decodedStream.format
     val sampleRate: Int = audioFormat.sampleRate.toInt()
     val frameDuration: Duration = audioFormat.frameDuration
+    val chunkSize: Int = ceil(SAMPLE_CHUNK_LENGTH.inWholeNanoseconds.toDouble() / frameDuration.inWholeNanoseconds.toDouble()).toInt()
 
     override fun close() {
         val failures = listOf(sourceStream, decodedStream)

@@ -7,5 +7,4 @@ data class ProcessingResult(
     val rmsAverageLoudness: Double,
     val samples: List<Double>,
     val rmsAverageLoudnessChunkIndex: Int,
-    val chunkSize: Int,
 )
