@@ -37,8 +37,9 @@ fun readMp3WithDefaults(file: Path): Audio {
     val targetStream = AudioSystem.getAudioInputStream(targetFormat, sourceStream)
 
     return Audio(
+        file = file,
         sourceStream = sourceStream,
-        stream = targetStream,
+        decodedStream = targetStream,
     )
 }
 
@@ -90,15 +91,16 @@ private fun ByteArray.frameToNormalizedSamples(): List<Double> {
 
 @Suppress("MemberVisibilityCanBePrivate")
 class Audio(
+    val file: Path,
     private val sourceStream: AudioInputStream,
-    val stream: AudioInputStream,
+    val decodedStream: AudioInputStream,
 ) : Closeable {
-    val audioFormat: AudioFormat = stream.format
+    val audioFormat: AudioFormat = decodedStream.format
     val sampleRate: Int = audioFormat.sampleRate.toInt()
     val frameDuration: Duration = audioFormat.frameDuration
 
     override fun close() {
-        val failures = listOf(sourceStream, stream)
+        val failures = listOf(sourceStream, decodedStream)
             .map { runCatching(it::close) }
             .filter { it.isFailure }
 

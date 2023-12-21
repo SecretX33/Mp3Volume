@@ -2,23 +2,93 @@
 
 package com.github.secretx33.mp3volume.mp3
 
+import com.github.secretx33.mp3volume.meanSquared
 import com.github.secretx33.mp3volume.model.ProcessedSample
+import com.github.secretx33.mp3volume.model.ProcessingResult
 import com.github.secretx33.mp3volume.model.Sample
 import com.github.secretx33.mp3volume.readResource
 import jdk.jfr.Name
+import org.slf4j.LoggerFactory
+import java.lang.invoke.MethodHandles
 import java.util.TreeMap
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.nanoseconds
+
+private val log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
+
+/**
+ * Source: Replay Gain' [RMS Energy](https://replaygain.hydrogenaud.io/rms_energy.html).
+ */
+private val SAMPLE_CHUNK_LENGTH = 50.milliseconds
+
+/**
+ * Source: Replay Gain' [Statistical Processing](https://replaygain.hydrogenaud.io/statistical_process.html).
+ */
+private const val RMS_PERCENTILE = 0.95
 
 private val yulewalkCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("coefficients/yulewalk.json")
 
 private val butterworthCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("coefficients/butterworth.json")
 
 /**
+ * Given an [audio] stream, calculate the perceived volume of the audio using the `Replay Gain` algorithm.
+ *
+ * The returned [ProcessingResult] will contain the average perceived volume of the audio, and a list of
+ * all the calculated values for each chunk of the audio.
+ *
+ * The caller is responsible for closing the [Audio].
+ */
+fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
+    val chunkSize = ceil(SAMPLE_CHUNK_LENGTH.inWholeNanoseconds.toDouble() / audio.frameDuration.inWholeNanoseconds.toDouble()).toInt()
+
+    if (log.isTraceEnabled) {
+        log.trace("Chunk Size: $chunkSize (${(chunkSize * audio.frameDuration.inWholeNanoseconds).nanoseconds.inWholeMilliseconds}ms)")
+    }
+
+    var previousChunk = emptyList<ProcessedSample>()
+    val chunkSamples = audio.decodedStream.normalizedSamplesSequence()
+        .chunked(chunkSize)
+        .mapIndexed { index, samples ->
+            val start = System.nanoTime().nanoseconds
+
+            val loudnessNormalizedSamples = samples.first().indices.map { sampleIndex ->
+                val sample = samples.map { it.getOrElse(sampleIndex) { _ -> it[0] } }.toDoubleArray()
+                applyLoudnessNormalizeFilters(
+                    sample = sample,
+                    sampleRate = audio.sampleRate,
+                    previousChunk = previousChunk.getOrNull(sampleIndex),
+                )
+            }.also { previousChunk = it }
+            val channelsMeanSquared = loudnessNormalizedSamples.map {
+                it.processedSample.toList().meanSquared()
+            }
+            val squaredMeanAverage = channelsMeanSquared.average()
+            squaredMeanAverage
+//                .also { log.info("${index + 1}. Average: $it (${it.squaredToDecibels()}dB) (${(System.nanoTime().nanoseconds - start).inWholeMicroseconds}mc)") }
+        }.toList()
+
+    val sortedChunkSamples = chunkSamples.sorted()
+    val rmsPosition = ceil(sortedChunkSamples.size.toDouble() * RMS_PERCENTILE).toInt()
+    val rmsValue = sqrt(sortedChunkSamples[rmsPosition])
+
+    return ProcessingResult(
+        analysedAudio = audio,
+        rmsAverageLoudness = rmsValue,
+        rmsAverageLoudnessChunkIndex = rmsPosition,
+        samples = sortedChunkSamples,
+        chunkSize = chunkSize,
+    )
+}
+
+/**
  * Transforms the audio [sample] by approximating their values to those perceived by the
  * human ear using Yulewalk and Butterworth IIR filters.
  */
-fun applyLoudnessNormalizeFilters(
+private fun applyLoudnessNormalizeFilters(
     sample: Sample,
     sampleRate: Int,
     previousChunk: ProcessedSample? = null,

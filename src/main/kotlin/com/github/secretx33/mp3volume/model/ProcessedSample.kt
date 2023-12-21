@@ -6,3 +6,5 @@ class ProcessedSample(
 )
 
 typealias Sample = DoubleArray
+typealias Samples = List<SampleUnit>
+typealias SampleUnit = Double
