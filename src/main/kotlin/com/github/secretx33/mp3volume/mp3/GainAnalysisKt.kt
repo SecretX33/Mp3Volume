@@ -47,7 +47,7 @@ fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
     }
 
     var previousChunk = emptyList<ProcessedSample>()
-    val chunkSamples = audio.decodedStream.asAmplitudeValues()
+    val chunkSamples = audio.audioStream.asAmplitudeValues()
         .chunked(audio.chunkSize)
         .mapIndexed { index, samples ->
             val start = System.nanoTime()

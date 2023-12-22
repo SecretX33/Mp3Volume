@@ -7,7 +7,6 @@ import java.io.Closeable
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Path
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioInputStream
 import javax.sound.sampled.AudioSystem
@@ -46,8 +45,7 @@ fun readMp3WithDefaults(file: Path): Audio {
 
     return Audio(
         file = file,
-        sourceStream = sourceStream,
-        decodedStream = targetStream,
+        audioStream = targetStream,
     )
 }
 
@@ -91,18 +89,15 @@ private val SAMPLE_CHUNK_LENGTH = 50.milliseconds
 @Suppress("MemberVisibilityCanBePrivate")
 class Audio(
     val file: Path,
-    private val sourceStream: AudioInputStream,
-    val decodedStream: AudioInputStream,
+    val audioStream: AudioInputStream,
 ) : Closeable {
-    val audioFormat: AudioFormat = decodedStream.format
+    val audioFormat: AudioFormat = audioStream.format
     val sampleRate: Int = audioFormat.sampleRate.toInt()
     val bitDepth: Int = audioFormat.sampleSizeInBits
     val maxAmplitude: Int = 2.0.pow(bitDepth - 1).toInt() - 1
     val frameDuration: Duration = audioFormat.frameDuration
     val chunkSize: Int = ceil(SAMPLE_CHUNK_LENGTH.inWholeNanoseconds.toDouble() / frameDuration.inWholeNanoseconds.toDouble()).toInt()
     val chunkDuration: Duration = (chunkSize * frameDuration.inWholeNanoseconds).nanoseconds
-
-    private val isClosed = AtomicBoolean(false)
 
     init {
         // Sanity checks
@@ -114,19 +109,8 @@ class Audio(
         require(chunkDuration > Duration.ZERO) { "Chunk duration must be greater than 0 (actual: $chunkDuration)" }
     }
 
-    override fun close() {
-        if (!isClosed.compareAndSet(false, true)) {
-            return
-        }
-        val failures = listOf(sourceStream, decodedStream)
-            .map { runCatching(it::close) }
-            .filter { it.isFailure }
+    override fun close() = audioStream.close()
 
-        failures.reduceOrNull { acc, result ->
-            acc.also { it.exceptionOrNull()!!.addSuppressed(result.exceptionOrNull()!!) }
-        }?.let { throw it.exceptionOrNull()!! }
-    }
-
-    override fun toString(): String = "Audio(${file.name}, $bitDepth-bit, sampleRate=$sampleRate, maxAmplitude=$maxAmplitude, isClosed=${isClosed.get()})"
+    override fun toString(): String = "Audio(${file.name}, $bitDepth-bit, sampleRate=$sampleRate, maxAmplitude=$maxAmplitude)"
 
 }

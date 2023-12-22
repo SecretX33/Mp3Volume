@@ -9,6 +9,7 @@ import com.github.secretx33.mp3volume.mp3.GainAnalysis
 import com.github.secretx33.mp3volume.mp3.ReplayGain
 import com.github.secretx33.mp3volume.mp3.asAmplitudeValues
 import com.github.secretx33.mp3volume.mp3.calculatePerceivedVolume
+import com.github.secretx33.mp3volume.mp3.readId3Tag
 import com.github.secretx33.mp3volume.mp3.readMp3WithDefaults
 import org.slf4j.LoggerFactory
 import java.lang.String.CASE_INSENSITIVE_ORDER
@@ -27,8 +28,8 @@ fun main(args: Array<String>) {
 //    listOf(folder.listDirectoryEntries("*.mp3").sortedBy { it.name }.filter { it.name.startsWith("Song") }.first())
     folder.listDirectoryEntries("*.mp3").sortedWith(compareBy<Path, String>(CASE_INSENSITIVE_ORDER) { it.name })
         .forEach {
-//            readId3Tag(it)
-            processFile(it)
+            readId3Tag(it)
+//            processFile(it)
         }
 }
 
@@ -55,7 +56,7 @@ private fun readAudioWithMp3GainImplementationOfReplayGain(
         InitGainAnalysis(replayGain, audio.sampleRate.toLong())
     }
 
-    audio.decodedStream.asAmplitudeValues()
+    audio.audioStream.asAmplitudeValues()
         .chunked(audio.chunkSize)
         .forEach {
             val start = System.nanoTime()
