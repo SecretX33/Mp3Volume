@@ -7,10 +7,13 @@ import java.io.Closeable
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioInputStream
 import javax.sound.sampled.AudioSystem
+import kotlin.io.path.name
 import kotlin.math.ceil
+import kotlin.math.pow
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
@@ -93,11 +96,28 @@ class Audio(
 ) : Closeable {
     val audioFormat: AudioFormat = decodedStream.format
     val sampleRate: Int = audioFormat.sampleRate.toInt()
+    val bitDepth: Int = audioFormat.sampleSizeInBits
+    val maxAmplitude: Int = 2.0.pow(bitDepth - 1).toInt() - 1
     val frameDuration: Duration = audioFormat.frameDuration
     val chunkSize: Int = ceil(SAMPLE_CHUNK_LENGTH.inWholeNanoseconds.toDouble() / frameDuration.inWholeNanoseconds.toDouble()).toInt()
     val chunkDuration: Duration = (chunkSize * frameDuration.inWholeNanoseconds).nanoseconds
 
+    private val isClosed = AtomicBoolean(false)
+
+    init {
+        // Sanity checks
+        require(sampleRate > 0) { "Sample rate must be greater than 0 (actual: $sampleRate)" }
+        require(bitDepth > 0) { "Bit depth must be greater than 0 (actual: $bitDepth)" }
+        require(maxAmplitude > 0) { "Max amplitude must be greater than 0 (actual: $maxAmplitude)" }
+        require(frameDuration > Duration.ZERO) { "Frame duration must be greater than 0 (actual: $frameDuration)" }
+        require(chunkSize > 0) { "Chunk size must be greater than 0 (actual: $chunkSize)" }
+        require(chunkDuration > Duration.ZERO) { "Chunk duration must be greater than 0 (actual: $chunkDuration)" }
+    }
+
     override fun close() {
+        if (!isClosed.compareAndSet(false, true)) {
+            return
+        }
         val failures = listOf(sourceStream, decodedStream)
             .map { runCatching(it::close) }
             .filter { it.isFailure }
@@ -106,4 +126,7 @@ class Audio(
             acc.also { it.exceptionOrNull()!!.addSuppressed(result.exceptionOrNull()!!) }
         }?.let { throw it.exceptionOrNull()!! }
     }
+
+    override fun toString(): String = "Audio(${file.name}, $bitDepth-bit, sampleRate=$sampleRate, maxAmplitude=$maxAmplitude, isClosed=${isClosed.get()})"
+
 }

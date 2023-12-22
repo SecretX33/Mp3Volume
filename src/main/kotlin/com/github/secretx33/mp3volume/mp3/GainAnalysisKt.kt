@@ -11,7 +11,7 @@ import com.github.secretx33.mp3volume.model.SamplesArray
 import com.github.secretx33.mp3volume.model.SamplesList
 import com.github.secretx33.mp3volume.model.toSampleArray
 import com.github.secretx33.mp3volume.readResource
-import com.github.secretx33.mp3volume.squaredToDecibels
+import com.github.secretx33.mp3volume.squaredAmplitudeToDBFS
 import jdk.jfr.Name
 import org.slf4j.LoggerFactory
 import java.lang.invoke.MethodHandles
@@ -66,7 +66,7 @@ fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
             val squaredMeanAverage = channelsMeanSquared.average()
 
             if (isTraceEnabled) {
-                log.trace("${index + 1}. Average: $squaredMeanAverage (${squaredMeanAverage.squaredToDecibels()}dB) (${microsElapsedUntilNow(start)}µ)")
+                log.trace("${index + 1}. Average: $squaredMeanAverage (${squaredMeanAverage.squaredAmplitudeToDBFS(audio.maxAmplitude)}dB) (${microsElapsedUntilNow(start)}µ)")
             }
             squaredMeanAverage
         }.toList().sorted()
@@ -75,7 +75,7 @@ fun calculatePerceivedVolume(audio: Audio): ProcessingResult {
     val rmsValue = sqrt(chunkSamples[rmsPosition])
 
     return ProcessingResult(
-        analysedAudio = audio,
+        audio = audio,
         rmsAverageLoudness = rmsValue,
         rmsAverageLoudnessChunkIndex = rmsPosition,
         samples = chunkSamples,

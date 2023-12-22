@@ -28,6 +28,7 @@ import javax.sound.sampled.AudioFormat
 import kotlin.io.path.createDirectories
 import kotlin.io.path.createFile
 import kotlin.io.path.exists
+import kotlin.math.absoluteValue
 import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -202,15 +203,34 @@ fun Iterable<Float>.rootMeanSquared(): Double = sqrt(meanSquared())
 @JvmName("rootMeanSquaredDouble")
 fun Iterable<Double>.rootMeanSquared(): Double = sqrt(meanSquared())
 
-private const val EPSILON = 1e-10
+fun Float.amplitudeToDBFS(maxAmplitude: Int): Float = toDouble().amplitudeToDBFS(maxAmplitude).toFloat()
 
-fun Float.toDecibels(): Float = toDouble().toDecibels().toFloat()
+fun Double.amplitudeToDBFS(maxAmplitude: Int): Double {
+    val epsilon = 1.0 / maxAmplitude.toDouble()
+    return 20 * log10(absoluteValue + epsilon)
+}
 
-fun Double.toDecibels(): Double = 20 * log10(this + EPSILON)
+fun Float.squaredAmplitudeToDBFS(maxAmplitude: Int): Float = toDouble().squaredAmplitudeToDBFS(maxAmplitude).toFloat()
 
-fun Float.squaredToDecibels(): Float = toDouble().toDecibels().toFloat()
+fun Double.squaredAmplitudeToDBFS(maxAmplitude: Int): Double {
+    val epsilon = 2.0 / maxAmplitude.toDouble()
+    return 10 * log10(absoluteValue + (epsilon * 2))
+}
 
-fun Double.squaredToDecibels(): Double = 10 * log10(this + EPSILON)
+fun Float.dBFSToDb(maxAmplitude: Int): Float = this + 20 * log10(maxAmplitude.toFloat())
+
+fun Double.dBFSToDb(maxAmplitude: Int): Double = this + 20 * log10(maxAmplitude.toDouble())
+
+/**
+ * Scales a value in `dB` that is based on the [maxAmplitude] range (`0` to `20 * log10(maxAmplitude.toDouble())`))
+ * to a value in `dB` that is based on the [maxDb] range (`0` to `maxDb`).
+ *
+ * @receiver Double A value in `dB`
+ */
+fun Double.scaleDb(maxAmplitude: Int, maxDb: Double): Double {
+    val scaleRatio = maxDb / (20 * log10(maxAmplitude.toDouble()))
+    return this * scaleRatio
+}
 
 /**
  * Read the [InputStream] as a sequence of [ByteArray]s, where each `ByteArray` has a size of [chunkSize],

@@ -4,7 +4,6 @@
 package com.github.secretx33.mp3volume
 
 import com.github.secretx33.mp3volume.model.ProcessingResult
-import com.github.secretx33.mp3volume.model.SampleUnit
 import com.github.secretx33.mp3volume.mp3.Audio
 import com.github.secretx33.mp3volume.mp3.GainAnalysis
 import com.github.secretx33.mp3volume.mp3.ReplayGain
@@ -36,10 +35,12 @@ fun main(args: Array<String>) {
 private fun processFile(file: Path) {
     var start = System.nanoTime()
     try {
-        readMp3WithDefaults(file).use { audio -> readAudioWithMp3GainImplementationOfReplayGain(audio, start) }
-
-        start = System.nanoTime()
         readMp3WithDefaults(file).use { audio -> readAudioWithMyImplementationOfReplayGain(audio, start) }
+
+//        start = System.nanoTime()
+//        readMp3WithDefaults(file).use { audio -> readAudioWithMp3GainImplementationOfReplayGain(audio, start) }
+//        start = System.nanoTime()
+//        readMp3WithDefaults(file).use { audio -> readAudioWithMp3GainImplementationOfReplayGain(audio, start) }
     } catch (e: Throwable) {
         log.error("Error calculating the perceived volume of '$file' (after ${millisElapsedUntilNow(start)}ms", e)
     }
@@ -71,7 +72,7 @@ private fun readAudioWithMp3GainImplementationOfReplayGain(
         }
 
     val titleGain = gainAnalysis.GetTitleGain(replayGain)
-    log.info("Replay Gain: $titleGain (${titleGain.toDecibels()}dB) in ${millisElapsedUntilNow(start)}ms")
+    log.info("Replay Gain: $titleGain (${titleGain.amplitudeToDBFS(audio.maxAmplitude)}dB) in ${millisElapsedUntilNow(start)}ms")
 }
 
 private fun readAudioWithMyImplementationOfReplayGain(
@@ -81,33 +82,37 @@ private fun readAudioWithMyImplementationOfReplayGain(
     val processingResult = calculatePerceivedVolume(audio)
 
 //    printDetailedSummary(sortedChunkSamples, rmsValue, start, fileName)
-    printSimpleSummary(processingResult, start)
+    processingResult.printSimpleSummary(start)
 }
 
 private fun printDetailedSummary(
-    sortedChunkSamples: List<SampleUnit>,
-    rmsValue: SampleUnit,
-    start: Long,
-    fileName: String,
-) = log.info("""
-    '$fileName' Total Samples: ${sortedChunkSamples.size} (in ${millisElapsedUntilNow(start)}ms)
-
-    Min: ${sortedChunkSamples.first()} (${sortedChunkSamples.first().squaredToDecibels()}dB)
-    Max: ${sortedChunkSamples.last()} (${sortedChunkSamples.last().squaredToDecibels()}dB)
-
-    Median: ${sortedChunkSamples[sortedChunkSamples.size / 2]} (${sortedChunkSamples[sortedChunkSamples.size / 2].squaredToDecibels()}dB)
-    Mean: ${sortedChunkSamples.average()} (${sortedChunkSamples.average().squaredToDecibels()}dB)
-    RMS: ${sortedChunkSamples.rootMeanSquared()} (${sortedChunkSamples.rootMeanSquared().toDecibels()}dB)
-
-    ReplayGain: $rmsValue (${rmsValue.squaredToDecibels().formattedDecimal()}dB)
-""".trimIndent())
-
-private fun printSimpleSummary(
     processingResult: ProcessingResult,
     start: Long,
 ) {
-    val fileName = processingResult.analysedAudio.file.name
-    val averageLoudness = processingResult.rmsAverageLoudness
-    val decibelsFs = averageLoudness.toDecibels()
-    log.info("$fileName -> Volume: $averageLoudness (${decibelsFs.formattedDecimal()}dBFS, ${(decibelsFs + 113.0).formattedDecimal()}dB) in ${millisElapsedUntilNow(start)}ms")
+    val audio = processingResult.audio
+    val fileName = audio.file.name
+    val chunkSamples = processingResult.samples
+    val rmsValue = processingResult.rmsAverageLoudness
+    val maxAmplitude = audio.maxAmplitude
+
+    log.info("""
+        '$fileName' Total Samples: ${chunkSamples.size} (in ${millisElapsedUntilNow(start)}ms)
+    
+        Min: ${chunkSamples.first()} (${chunkSamples.first().squaredAmplitudeToDBFS(maxAmplitude)}dB)
+        Max: ${chunkSamples.last()} (${chunkSamples.last().squaredAmplitudeToDBFS(maxAmplitude)}dB)
+    
+        Median: ${chunkSamples[chunkSamples.size / 2]} (${chunkSamples[chunkSamples.size / 2].squaredAmplitudeToDBFS(maxAmplitude)}dB)
+        Mean: ${chunkSamples.average()} (${chunkSamples.average().squaredAmplitudeToDBFS(maxAmplitude)}dB)
+        RMS: ${chunkSamples.rootMeanSquared()} (${chunkSamples.rootMeanSquared().amplitudeToDBFS(maxAmplitude)}dB)
+    
+        ReplayGain: $rmsValue (${rmsValue.squaredAmplitudeToDBFS(maxAmplitude).formattedDecimal()}dB)
+    """.trimIndent())
+}
+
+private fun ProcessingResult.printSimpleSummary(start: Long) {
+    val fileName = audio.file.name
+    val scaledDb = rmsAverageLoudnessDB.scaleDb(audio.maxAmplitude, maxDb = 100.0)
+    val mp3gainLikeDb = rmsAverageLoudnessDBFS + 113.0
+//    println(millisElapsedUntilNow(start))
+    log.info("$fileName -> Volume: $rmsAverageLoudness (${rmsAverageLoudnessDBFS.formattedDecimal()}dBFS, ${rmsAverageLoudnessDB.formattedDecimal()}dB, ${scaledDb.formattedDecimal()}dB (scaled), ${mp3gainLikeDb.formattedDecimal()}dB \"mp3gain-like\") in ${millisElapsedUntilNow(start)}ms")
 }
