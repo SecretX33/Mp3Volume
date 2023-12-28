@@ -24,13 +24,7 @@ import kotlin.math.sqrt
 private val log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
 
 private val yulewalkCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("coefficients/yulewalk.json")
-
 private val butterworthCoeffs = readResource<TreeMap<Int, FilterCoefficients>>("coefficients/butterworth.json")
-
-/**
- * Source: Replay Gain' [Statistical Processing](https://replaygain.hydrogenaud.io/statistical_process.html).
- */
-private const val RMS_PERCENTILE = 0.95
 
 /**
  * Given an [audio] stream, calculate the perceived volume of the audio using the `Replay Gain` algorithm.
@@ -149,6 +143,7 @@ private fun applyIIRFilter(input: SamplesArray, coeffs: FilterCoefficients): Sam
  */
 private class FilterCoefficients(val a: SamplesArray, val b: SamplesArray) {
     init {
+        require(a.isNotEmpty()) { "Filter coefficients must have at least one item" }
         require(a.size == b.size) { "Filter coefficients must have the same size, a = ${a.size}, b = ${b.size}" }
     }
     val size = a.size

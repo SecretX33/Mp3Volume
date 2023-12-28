@@ -14,7 +14,6 @@ import kotlin.io.path.name
 import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
 
 /**
@@ -80,11 +79,6 @@ private fun ByteArray.frameToAmplitudeValues(): SamplesList {
     }
     return samples
 }
-
-/**
- * Source: Replay Gain' [RMS Energy](https://replaygain.hydrogenaud.io/rms_energy.html).
- */
-private val SAMPLE_CHUNK_LENGTH = 50.milliseconds
 
 @Suppress("MemberVisibilityCanBePrivate")
 class Audio(
